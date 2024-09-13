@@ -3,7 +3,10 @@ package com.example.laserpenv1;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.PixelFormat;
+import android.net.Uri;
+import android.os.Build;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -33,6 +36,21 @@ public class FloatingCameraService extends Service {
     public void onCreate() {
         super.onCreate();
 
+        // 檢查並請求懸浮窗權限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Log.d(TAG, "Overlay permission not granted, requesting...");
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                stopSelf(); // 如果沒有權限，停止服務，等待權限開啟後重新啟動
+                return;
+            } else {
+                Log.d(TAG, "Overlay permission granted.");
+            }
+        }
+
         // Initialize OpenCV
         if (!OpenCVLoader.initDebug()) {
             Log.e(TAG, "OpenCV initialization failed!");
@@ -44,7 +62,10 @@ public class FloatingCameraService extends Service {
         // Set up the floating window layout parameters for camera view
         WindowManager.LayoutParams cameraParams = new WindowManager.LayoutParams(
                 200, 150,  // Fixed size for camera view
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                // 嘗試使用不同的類型來處理懸浮視窗問題
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                        WindowManager.LayoutParams.TYPE_PHONE, // 舊設備使用 TYPE_PHONE
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
 
@@ -96,7 +117,9 @@ public class FloatingCameraService extends Service {
         WindowManager.LayoutParams buttonParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                        WindowManager.LayoutParams.TYPE_PHONE, // 舊設備使用 TYPE_PHONE
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
 
@@ -182,7 +205,9 @@ public class FloatingCameraService extends Service {
             WindowManager.LayoutParams whiteScreenParams = new WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                            WindowManager.LayoutParams.TYPE_PHONE, // 舊設備使用 TYPE_PHONE
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
 

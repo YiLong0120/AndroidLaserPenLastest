@@ -3,7 +3,9 @@ package com.example.laserpenv1;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.PixelFormat;
+import android.os.Build;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.View;
@@ -20,18 +22,47 @@ public class MouseAccessibilityService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // 檢查並請求懸浮窗權限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:" + getPackageName()));
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                stopSelf(); // 如果沒有權限，停止服務
+                return;
+            }
+        }
+
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
+        // 初始化游標視圖
         cursorView = View.inflate(getBaseContext(), R.layout.cursor_layout, null);
-        cursorLayout = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT);
-        cursorLayout.gravity = Gravity.TOP | Gravity.LEFT;
-        cursorLayout.x = 200;
-        cursorLayout.y = 200;
+
+        // 根據不同 Android 版本設定懸浮窗參數
+        WindowManager.LayoutParams params;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            params = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    PixelFormat.TRANSLUCENT);
+        } else {
+            params = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    PixelFormat.TRANSLUCENT);
+        }
+
+        params.gravity = Gravity.TOP | Gravity.LEFT;
+        params.x = 200;
+        params.y = 200;
+
+        cursorLayout = params;
 
         // 获取屏幕宽度和高度
         DisplayMetrics displayMetrics = new DisplayMetrics();
@@ -39,7 +70,7 @@ public class MouseAccessibilityService extends Service {
         displayWidth = displayMetrics.widthPixels;
         displayHeight = displayMetrics.heightPixels;
 
-        // 添加 View
+        // 添加游标视图
         windowManager.addView(cursorView, cursorLayout);
     }
 
