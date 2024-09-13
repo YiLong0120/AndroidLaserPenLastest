@@ -1,0 +1,2 @@
+ninja: Entering directory `C:\Users\88693\AndroidStudioProjects\LaserPenpip mouse\sdk\.cxx\Debug\k636t504\x86_64'
+ninja: no work to do.

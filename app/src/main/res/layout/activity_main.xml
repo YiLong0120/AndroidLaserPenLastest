@@ -1,0 +1,54 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <org.opencv.android.JavaCameraView
+        android:id="@+id/cameraView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible" />
+
+    <TextView
+        android:id="@+id/coordinateTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:text="Coordinates: "
+        android:textColor="#FFFFFF"
+        android:background="#80000000"
+        android:padding="10dp"
+        android:textSize="18sp"
+        android:visibility="visible"/>
+
+    <!-- 在現有的佈局文件中添加一個按鈕 -->
+    <Button
+        android:id="@+id/start_pip_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="560dp"
+        android:text="Start PiP" />
+
+
+    <Button
+        android:id="@+id/lock_frame_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="16dp"
+        android:text="Lock Frame" />
+
+    <Button
+        android:id="@+id/record_hsv_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="80dp"
+        android:text="Record HSV" />
+
+
+
+</RelativeLayout>

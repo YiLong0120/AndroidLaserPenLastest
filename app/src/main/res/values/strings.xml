@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">LaserPenV1</string>
+    <string name="accessibility_service_description">Laser Pointer Accessibility Service</string>
+    <string name="service_description">此服务用于演示如何模拟点击操作。</string>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="10dp">
+
+    <Button
+        android:id="@+id/floating_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Menu" />
+
+    <Button
+        android:id="@+id/white_screen_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="White Screen"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/lock_frame_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Lock Frame"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/record_hsv_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Record HSV"
+        android:visibility="gone" />
+
+    <!-- 新增的退出按鈕 -->
+    <Button
+        android:id="@+id/exit_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Exit"
+        android:visibility="gone" />
+
+
+</LinearLayout>
