@@ -1,6 +1,7 @@
 package com.example.laserpenv1;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -141,29 +142,25 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
     private void detectLaserPoints(Mat rgbaMat) {
-        if (detectedHSVValue == null) return;
-
-        // 将图像转换为HSV色彩空间
         Mat hsv = new Mat();
-        Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGBA2RGB);
-        Imgproc.cvtColor(hsv, hsv, Imgproc.COLOR_RGB2HSV);
+        Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGB2HSV);
 
-        // 使用动态HSV值创建掩模
-        Mat laserMask = new Mat();
-        Scalar lowerHSV = new Scalar(1, 35, 195);
-        Scalar upperHSV = new Scalar(179, 145, 255);
-        Core.inRange(hsv, lowerHSV, upperHSV, laserMask);
+        Scalar lowerGreen = new Scalar(30, 100, 100);
+        Scalar upperGreen = new Scalar(90, 255, 255);
 
-        // 腐蚀与膨胀处理
-        Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(9, 9));
-        Imgproc.morphologyEx(laserMask, laserMask, Imgproc.MORPH_OPEN, kernel);
-        Imgproc.morphologyEx(laserMask, laserMask, Imgproc.MORPH_CLOSE, kernel);
+        Mat greenMask = new Mat();
+        Core.inRange(hsv, lowerGreen, upperGreen, greenMask);
+
+        Mat contrast = new Mat();
+        Core.convertScaleAbs(hsv, contrast, 2, 0);
+
+        Mat dilatedMask = new Mat();
+        Imgproc.dilate(greenMask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(15, 15)));
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
-        Imgproc.findContours(laserMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(dilatedMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
-        // 处理找到的轮廓
         Rect boundingRect = null;
         for (MatOfPoint contour : contours) {
             Rect rect = Imgproc.boundingRect(contour);
@@ -178,9 +175,45 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             int laserX = boundingRect.x + boundingRect.width / 2;
             int laserY = boundingRect.y + boundingRect.height / 2;
 
-            // 处理光点的逻辑...
+            int mappedX = displayWidth - ((int) (((laserY - screenBoundingRect.y) / (float) screenBoundingRect.height) * displayWidth));
+            int mappedY = (int) (((laserX - screenBoundingRect.x) / (float) screenBoundingRect.width) * displayHeight);
+
+            Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
+
+            if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
+                if (!isLaserStationary) {
+                    isLaserStationary = true;
+                    laserHandler.postDelayed(laserRunnable = () -> {
+                        if (isLaserStationary) {
+                            Intent clickIntent = new Intent(context, MyAccessibilityService.class);
+                            clickIntent.putExtra("x", mappedX);
+                            clickIntent.putExtra("y", mappedY);
+                            clickIntent.putExtra("isFrameLocked", isFrameLocked);
+                            context.startService(clickIntent);
+                        }
+                    }, 1000); // 1秒延遲
+                }
+            } else {
+                isLaserStationary = false;
+                laserHandler.removeCallbacks(laserRunnable);
+            }
+
+            lastLaserPoint = new Point(mappedX, mappedY);
+
+            Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
+            moveIntent.putExtra("x", mappedX);
+            moveIntent.putExtra("y", mappedY);
+            context.startService(moveIntent);
+
+            if (pointListener != null) {
+                pointListener.onPointDetected(mappedX, mappedY);
+            }
+        } else {
+            isLaserStationary = false;
+            laserHandler.removeCallbacks(laserRunnable);
         }
     }
+
 
     private void calculateScaleFactors() {
         if (screenBoundingRect != null) {
