@@ -20,6 +20,7 @@ import android.widget.Toast;
 
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Scalar;
 
 public class FloatingCameraService extends Service {
 
@@ -31,6 +32,8 @@ public class FloatingCameraService extends Service {
     private boolean isMenuExpanded = false;
     private boolean isWhiteScreen = false;
     private View whiteScreenOverlay;
+    private boolean isDetectingHSV = false; // 新增状态标记
+    private Scalar detectedHSVValue; // 存储检测到的HSV值
 
     @Override
     public void onCreate() {
@@ -61,11 +64,10 @@ public class FloatingCameraService extends Service {
 
         // Set up the floating window layout parameters for camera view
         WindowManager.LayoutParams cameraParams = new WindowManager.LayoutParams(
-                200, 150,  // Fixed size for camera view
-                // 嘗試使用不同的類型來處理懸浮視窗問題
+                200, 150,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
-                        WindowManager.LayoutParams.TYPE_PHONE, // 舊設備使用 TYPE_PHONE
+                        WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
 
@@ -119,7 +121,7 @@ public class FloatingCameraService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
-                        WindowManager.LayoutParams.TYPE_PHONE, // 舊設備使用 TYPE_PHONE
+                        WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
 
@@ -135,6 +137,7 @@ public class FloatingCameraService extends Service {
         Button menuButton = floatingButton.findViewById(R.id.floating_button);
         Button whiteScreenButton = floatingButton.findViewById(R.id.white_screen_button);
         Button lockFrameButton = floatingButton.findViewById(R.id.lock_frame_button);
+        Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
 
         // Set the menu button click listener
@@ -142,11 +145,13 @@ public class FloatingCameraService extends Service {
             if (isMenuExpanded) {
                 whiteScreenButton.setVisibility(View.GONE);
                 lockFrameButton.setVisibility(View.GONE);
+                hsvButton.setVisibility(View.GONE); // 隱藏 HSV 按鈕
                 exitButton.setVisibility(View.GONE);
             } else {
                 whiteScreenButton.setVisibility(View.VISIBLE);
                 lockFrameButton.setVisibility(View.VISIBLE);
-                exitButton.setVisibility(View.VISIBLE);  // Show the exit button
+                hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
+                exitButton.setVisibility(View.VISIBLE);
             }
             isMenuExpanded = !isMenuExpanded;
         });
@@ -157,6 +162,25 @@ public class FloatingCameraService extends Service {
                 openCVProcessor.toggleFrameLock();
             }
         });
+
+        // 设置HSV按钮点击监听器
+        hsvButton.setOnClickListener(v -> {
+            if (openCVProcessor != null) {
+                if (isDetectingHSV) {
+                    // 如果当前正在检测HSV，停止检测
+                    isDetectingHSV = false;
+                    Toast.makeText(FloatingCameraService.this, "停止HSV检测", Toast.LENGTH_SHORT).show();
+                } else {
+                    // 启动HSV检测
+                    isDetectingHSV = true;
+                    detectedHSVValue = null; // 重置
+                    Toast.makeText(FloatingCameraService.this, "开始检测HSV值", Toast.LENGTH_SHORT).show();
+                    openCVProcessor.startHSVDetection(); // 启动HSV检测
+                }
+            }
+        });
+
+
 
         // Set the white screen button click listener
         whiteScreenButton.setOnClickListener(v -> toggleWhiteScreen());
@@ -207,7 +231,7 @@ public class FloatingCameraService extends Service {
                     WindowManager.LayoutParams.MATCH_PARENT,
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
-                            WindowManager.LayoutParams.TYPE_PHONE, // 舊設備使用 TYPE_PHONE
+                            WindowManager.LayoutParams.TYPE_PHONE,
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
 
@@ -240,15 +264,12 @@ public class FloatingCameraService extends Service {
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
         if (mOpenCvCameraView != null) {
             mOpenCvCameraView.disableView();
         }
-        if (mFloatingView != null) {
+        if (mWindowManager != null && mFloatingView != null) {
             mWindowManager.removeView(mFloatingView);
         }
-        if (whiteScreenOverlay != null) {
-            mWindowManager.removeView(whiteScreenOverlay);
-        }
+        super.onDestroy();
     }
 }

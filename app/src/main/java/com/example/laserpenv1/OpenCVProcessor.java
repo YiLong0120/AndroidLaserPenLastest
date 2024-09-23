@@ -1,7 +1,6 @@
 package com.example.laserpenv1;
 
 import android.content.Context;
-import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -39,6 +38,13 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private boolean isLaserStationary = false;
     private float scaleX = 1.0f;
     private float scaleY = 1.0f;
+    private Mat frame; // 用來保存當前相機幀
+    private static final String TAG = "OpenCVProcessor";
+    private Scalar detectedHSVValue;
+    private boolean isDetectingHSV = false;
+
+    private Scalar lowerHSV;
+    private Scalar upperHSV;
 
     public interface PointListener {
         void onPointDetected(int x, int y);
@@ -74,19 +80,15 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        Mat frame = inputFrame.rgba();
+        frame = inputFrame.rgba();
 
         if (!isFrameLocked) {
-            Mat hsvMat = new Mat();
-            Imgproc.cvtColor(frame, hsvMat, Imgproc.COLOR_RGB2HSV);
+            // 將畫面轉換為灰階
+            Mat grayMat = new Mat();
+            Imgproc.cvtColor(frame, grayMat, Imgproc.COLOR_RGBA2GRAY);
 
-            Scalar lowerThresholdForScreen = new Scalar(0, 0, 200);
-            Scalar upperThresholdForScreen = new Scalar(180, 25, 255);
-
-            Mat screenMask = new Mat();
-            Core.inRange(hsvMat, lowerThresholdForScreen, upperThresholdForScreen, screenMask);
-
-            detectProjectionScreen(frame, screenMask);
+            // 背景減除與二值化處理
+            detectProjectionScreen(frame, grayMat);
         } else {
             detectLaserPoints(frame);
         }
@@ -94,9 +96,12 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         return frame;
     }
 
-    private void detectProjectionScreen(Mat rgbaMat, Mat screenMask) {
+    private void detectProjectionScreen(Mat rgbaMat, Mat grayMat) {
+        Mat binaryMat = new Mat();
+        Imgproc.threshold(grayMat, binaryMat, 50, 255, Imgproc.THRESH_BINARY);
+
         List<MatOfPoint> screenContours = new ArrayList<>();
-        Imgproc.findContours(screenMask, screenContours, new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(binaryMat, screenContours, new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
         double maxArea = 0;
         Rect maxRect = null;
@@ -111,10 +116,9 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
         if (maxRect != null) {
             screenBoundingRect = maxRect;
-            if (!isFrameLocked) {  // 只有在未鎖定時顯示綠色框框
+            if (!isFrameLocked) {
                 Imgproc.rectangle(rgbaMat, maxRect.tl(), maxRect.br(), new Scalar(0, 255, 0), 2);
             }
-            // 計算縮放因子
             calculateScaleFactors();
         }
     }
@@ -137,23 +141,29 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
     private void detectLaserPoints(Mat rgbaMat) {
+        if (detectedHSVValue == null) return;
+
+        // 将图像转换为HSV色彩空间
         Mat hsv = new Mat();
-        Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGB2HSV);
+        Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGBA2RGB);
+        Imgproc.cvtColor(hsv, hsv, Imgproc.COLOR_RGB2HSV);
 
-        Scalar lowerGreen = new Scalar(35, 100, 100);
-        Scalar upperGreen = new Scalar(85, 255, 255);
+        // 使用动态HSV值创建掩模
+        Mat laserMask = new Mat();
+        Scalar lowerHSV = new Scalar(1, 35, 195);
+        Scalar upperHSV = new Scalar(179, 145, 255);
+        Core.inRange(hsv, lowerHSV, upperHSV, laserMask);
 
-        Mat greenMask = new Mat();
-        Core.inRange(hsv, lowerGreen, upperGreen, greenMask);
-
+        // 腐蚀与膨胀处理
         Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(9, 9));
-        Imgproc.morphologyEx(greenMask, greenMask, Imgproc.MORPH_OPEN, kernel);
-        Imgproc.morphologyEx(greenMask, greenMask, Imgproc.MORPH_CLOSE, kernel);
+        Imgproc.morphologyEx(laserMask, laserMask, Imgproc.MORPH_OPEN, kernel);
+        Imgproc.morphologyEx(laserMask, laserMask, Imgproc.MORPH_CLOSE, kernel);
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
-        Imgproc.findContours(greenMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(laserMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
+        // 处理找到的轮廓
         Rect boundingRect = null;
         for (MatOfPoint contour : contours) {
             Rect rect = Imgproc.boundingRect(contour);
@@ -168,48 +178,9 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             int laserX = boundingRect.x + boundingRect.width / 2;
             int laserY = boundingRect.y + boundingRect.height / 2;
 
-            int mappedX = displayWidth - ((int) (((laserY - screenBoundingRect.y) / (float) screenBoundingRect.height) * displayWidth));
-            int mappedY = (int) (((laserX - screenBoundingRect.x) / (float) screenBoundingRect.width) * displayHeight);
-
-
-            Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
-
-            if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
-                if (!isLaserStationary) {
-                    isLaserStationary = true;
-                    laserHandler.postDelayed(laserRunnable = () -> {
-                        if (isLaserStationary) {
-                            Intent clickIntent = new Intent(context, MyAccessibilityService.class);
-                            clickIntent.putExtra("x", mappedX);
-                            clickIntent.putExtra("y", mappedY);
-                            clickIntent.putExtra("isFrameLocked", isFrameLocked);
-                            context.startService(clickIntent);
-                        }
-                    }, 1000); // 2秒延迟
-                }
-            } else {
-                isLaserStationary = false;
-                laserHandler.removeCallbacks(laserRunnable);
-            }
-
-            lastLaserPoint = new Point(mappedX, mappedY);
-
-            Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
-            moveIntent.putExtra("x", mappedX);
-            moveIntent.putExtra("y", mappedY);
-            context.startService(moveIntent);
-
-            if (pointListener != null) {
-                pointListener.onPointDetected(mappedX, mappedY);
-            }
-        } else {
-            isLaserStationary = false;
-            laserHandler.removeCallbacks(laserRunnable);
+            // 处理光点的逻辑...
         }
     }
-
-
-
 
     private void calculateScaleFactors() {
         if (screenBoundingRect != null) {
@@ -220,5 +191,63 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
     private double getDistance(Point p1, Point p2) {
         return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+    }
+
+    public void startHSVDetection() {
+        if (frame != null) {
+            detectHSVPoints(frame);  // 开始检测HSV光点
+        }
+    }
+    private void detectHSVPoints(Mat rgbaMat) {
+        // 将图像转换为HSV色彩空间
+        Mat hsv = new Mat();
+        Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGBA2RGB);
+        Imgproc.cvtColor(hsv, hsv, Imgproc.COLOR_RGB2HSV);
+
+        // 背景减除与二值化
+        Mat mask = new Mat();
+        Core.inRange(hsv, new Scalar(0, 0, 0), new Scalar(180, 255, 255), mask); // 提取整个图像
+
+        // 腐蚀与膨胀处理
+        Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(9, 9));
+        Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_OPEN, kernel);
+        Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_CLOSE, kernel);
+
+        List<MatOfPoint> contours = new ArrayList<>();
+        Mat hierarchy = new Mat();
+        Imgproc.findContours(mask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+
+        if (!contours.isEmpty()) {
+            // 提取第一个轮廓的中心
+            Rect boundingRect = Imgproc.boundingRect(contours.get(0));
+            int laserX = boundingRect.x + boundingRect.width / 2;
+            int laserY = boundingRect.y + boundingRect.height / 2;
+
+            // 计算并存储HSV值
+            detectedHSVValue = new Scalar(
+                    Core.mean(hsv.submat(boundingRect)).val[0],
+                    Core.mean(hsv.submat(boundingRect)).val[1],
+                    Core.mean(hsv.submat(boundingRect)).val[2]
+            );
+
+            // 显示HSV值
+            mainHandler.post(() -> Toast.makeText(context, "检测到HSV值: " + detectedHSVValue.toString(), Toast.LENGTH_SHORT).show());
+
+            // 结束HSV检测
+            isDetectingHSV = false;
+
+            // 存储动态HSV范围
+            lowerHSV = new Scalar(
+                    Math.max(detectedHSVValue.val[0] - 10, 0),
+                    Math.max(detectedHSVValue.val[1] - 50, 0),
+                    Math.max(detectedHSVValue.val[2] - 50, 0)
+            );
+            upperHSV = new Scalar(
+                    Math.min(detectedHSVValue.val[0] + 10, 180),
+                    Math.min(detectedHSVValue.val[1] + 50, 255),
+                    Math.min(detectedHSVValue.val[2] + 50, 255)
+            );
+            isDetectingHSV = false;
+        }
     }
 }
