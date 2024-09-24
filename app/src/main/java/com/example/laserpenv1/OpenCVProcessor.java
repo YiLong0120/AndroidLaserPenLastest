@@ -47,6 +47,11 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private Scalar lowerHSV;
     private Scalar upperHSV;
 
+    private boolean isFlashing = false;
+    private int flashCount = 0;
+    private long lastFlashTime = 0;
+    private static final int FLASH_DELAY = 500; // 定義閃爍間隔，0.5秒
+
     public interface PointListener {
         void onPointDetected(int x, int y);
     }
@@ -180,26 +185,27 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
             Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
 
+            // 判斷雷射點是否穩定
             if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
-                if (!isLaserStationary) {
-                    isLaserStationary = true;
-                    laserHandler.postDelayed(laserRunnable = () -> {
-                        if (isLaserStationary) {
-                            Intent clickIntent = new Intent(context, MyAccessibilityService.class);
-                            clickIntent.putExtra("x", mappedX);
-                            clickIntent.putExtra("y", mappedY);
-                            clickIntent.putExtra("isFrameLocked", isFrameLocked);
-                            context.startService(clickIntent);
-                        }
-                    }, 1000); // 1秒延遲
+                isLaserStationary = true;
+
+                // 檢測雷射閃爍
+                detectLaserFlashes();
+
+                // 只有當閃爍數量達到2次時才會觸發點擊
+                if (flashCount >= 2) {
+                    triggerClick(mappedX, mappedY);
+                    flashCount = 0;
+                    resetFlashDetection();
                 }
             } else {
                 isLaserStationary = false;
-                laserHandler.removeCallbacks(laserRunnable);
+                resetFlashDetection();
             }
 
             lastLaserPoint = new Point(mappedX, mappedY);
 
+            // 傳送滑鼠移動指令
             Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
             moveIntent.putExtra("x", mappedX);
             moveIntent.putExtra("y", mappedY);
@@ -209,10 +215,32 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                 pointListener.onPointDetected(mappedX, mappedY);
             }
         } else {
-            isLaserStationary = false;
-            laserHandler.removeCallbacks(laserRunnable);
+            resetFlashDetection(); // 找不到雷射點時重置閃爍檢測
         }
     }
+
+    private void detectLaserFlashes() {
+        long currentTime = System.currentTimeMillis();
+        if (isLaserStationary && currentTime - lastFlashTime >= FLASH_DELAY) {
+            flashCount++;
+            lastFlashTime = currentTime;
+        }
+    }
+
+    private void resetFlashDetection() {
+        flashCount = 0;
+        lastFlashTime = 0;
+    }
+
+    // 觸發點擊方法
+    private void triggerClick(int x, int y) {
+        Intent clickIntent = new Intent(context, MyAccessibilityService.class);
+        clickIntent.putExtra("x", x);
+        clickIntent.putExtra("y", y);
+        clickIntent.putExtra("isFrameLocked", isFrameLocked);
+        context.startService(clickIntent);
+    }
+
 
 
     private void calculateScaleFactors() {

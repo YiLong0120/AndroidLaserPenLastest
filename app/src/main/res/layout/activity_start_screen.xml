@@ -18,7 +18,7 @@
         android:id="@+id/cameraPermissionButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="授予相机权限"
+        android:text="授予相機權限"
         android:layout_centerHorizontal="true"
         android:layout_below="@id/titleTextView"
         android:layout_marginTop="20dp" />
@@ -27,7 +27,7 @@
         android:id="@+id/overlayPermissionButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="授予显示在其他应用上层权限"
+        android:text="授予顯示在其他應用程式上層權限"
         android:layout_centerHorizontal="true"
         android:layout_below="@id/cameraPermissionButton"
         android:layout_marginTop="20dp" />
@@ -36,7 +36,7 @@
         android:id="@+id/accessibilityPermissionButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="授予无障碍服务权限"
+        android:text="授予無障礙服務權限"
         android:layout_centerHorizontal="true"
         android:layout_below="@id/overlayPermissionButton"
         android:layout_marginTop="20dp" />
@@ -45,7 +45,7 @@
         android:id="@+id/startButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="启动"
+        android:text="啟動"
         android:layout_centerHorizontal="true"
         android:layout_below="@id/accessibilityPermissionButton"
         android:layout_marginTop="20dp" />

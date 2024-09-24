@@ -148,7 +148,7 @@ public class FloatingCameraService extends Service {
                 hsvButton.setVisibility(View.GONE); // 隱藏 HSV 按鈕
                 exitButton.setVisibility(View.GONE);
             } else {
-                whiteScreenButton.setVisibility(View.VISIBLE);
+//                whiteScreenButton.setVisibility(View.VISIBLE);
                 lockFrameButton.setVisibility(View.VISIBLE);
                 hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
                 exitButton.setVisibility(View.VISIBLE);
