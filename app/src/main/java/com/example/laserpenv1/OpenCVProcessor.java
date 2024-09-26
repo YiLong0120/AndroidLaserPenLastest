@@ -12,6 +12,7 @@ import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
@@ -106,27 +107,64 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Mat binaryMat = new Mat();
         Imgproc.threshold(grayMat, binaryMat, 50, 255, Imgproc.THRESH_BINARY);
 
-        List<MatOfPoint> screenContours = new ArrayList<>();
-        Imgproc.findContours(binaryMat, screenContours, new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        List<MatOfPoint> contours = new ArrayList<>();
+        Mat hierarchy = new Mat();
+        Imgproc.findContours(binaryMat, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
-        double maxArea = 0;
-        Rect maxRect = null;
-        for (MatOfPoint contour : screenContours) {
-            Rect rect = Imgproc.boundingRect(contour);
+        if (contours.isEmpty()) {
+            return;
+        }
+
+        // 找到最大的輪廓
+        MatOfPoint largestContour = contours.get(0);
+        double maxArea = Imgproc.contourArea(largestContour);
+        for (MatOfPoint contour : contours) {
             double area = Imgproc.contourArea(contour);
             if (area > maxArea) {
                 maxArea = area;
-                maxRect = rect;
+                largestContour = contour;
             }
         }
 
-        if (maxRect != null) {
-            screenBoundingRect = maxRect;
-            if (!isFrameLocked) {
-                Imgproc.rectangle(rgbaMat, maxRect.tl(), maxRect.br(), new Scalar(0, 255, 0), 2);
+        // 使用多邊形近似來簡化輪廓
+        MatOfPoint2f contour2f = new MatOfPoint2f(largestContour.toArray());
+        double epsilon = 0.02 * Imgproc.arcLength(contour2f, true);
+        MatOfPoint2f approxCurve = new MatOfPoint2f();
+        Imgproc.approxPolyDP(contour2f, approxCurve, epsilon, true);
+
+        // 如果近似後的多邊形有4個頂點，我們認為它是我們要找的屏幕
+        Point[] corners = approxCurve.toArray();
+        if (corners.length == 4) {
+            // 繪製綠色邊框
+            for (int i = 0; i < 4; i++) {
+                Imgproc.line(rgbaMat, corners[i], corners[(i + 1) % 4], new Scalar(0, 255, 0), 2);
             }
-            calculateScaleFactors();
+
+            // 更新 screenBoundingRect
+            screenBoundingRect = Imgproc.boundingRect(new MatOfPoint(corners));
+
+            // 在每個角落畫一個小圓圈
+            for (Point corner : corners) {
+                Imgproc.circle(rgbaMat, corner, 5, new Scalar(255, 0, 0), -1);
+            }
+
+            if (!isFrameLocked) {
+                calculateScaleFactors();
+            }
+        } else {
+            // 如果沒有找到精確的四邊形，退回到使用邊界矩形
+            screenBoundingRect = Imgproc.boundingRect(largestContour);
+            if (!isFrameLocked) {
+                Imgproc.rectangle(rgbaMat, screenBoundingRect.tl(), screenBoundingRect.br(), new Scalar(0, 255, 0), 2);
+                calculateScaleFactors();
+            }
         }
+
+        // 釋放資源
+        binaryMat.release();
+        hierarchy.release();
+        contour2f.release();
+        approxCurve.release();
     }
 
     public void toggleFrameLock() {
@@ -185,25 +223,13 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
             Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
 
-            // 判斷雷射點是否穩定
-            if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
-                isLaserStationary = true;
-
-                // 檢測雷射閃爍
-                detectLaserFlashes();
-
-                // 只有當閃爍數量達到2次時才會觸發點擊
-                if (flashCount >= 2) {
-                    triggerClick(mappedX, mappedY);
-                    flashCount = 0;
-                    resetFlashDetection();
-                }
-            } else {
-                isLaserStationary = false;
-                resetFlashDetection();
-            }
-
             lastLaserPoint = new Point(mappedX, mappedY);
+
+            // 處理雷射點閃爍與點擊邏輯
+            handleLaserClick(mappedX, mappedY);
+
+            // 處理拖曳邏輯
+            handleLaserDrag(mappedX, mappedY);
 
             // 傳送滑鼠移動指令
             Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
@@ -218,6 +244,52 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             resetFlashDetection(); // 找不到雷射點時重置閃爍檢測
         }
     }
+
+    private void handleLaserClick(int mappedX, int mappedY) {
+        // 判斷雷射點是否穩定
+        if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
+            isLaserStationary = true;
+
+            // 檢測雷射閃爍
+            detectLaserFlashes();
+
+            // 只有當閃爍數量達到2次時才會觸發點擊
+            if (flashCount >= 2) {
+                triggerClick(mappedX, mappedY);
+                flashCount = 0;
+                resetFlashDetection();
+            }
+        } else {
+            isLaserStationary = false;
+            resetFlashDetection();
+        }
+    }
+
+    private void handleLaserDrag(int mappedX, int mappedY) {
+        // 判斷雷射點是否穩定並檢測閃爍
+        if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
+            // 檢測一次閃爍
+            detectLaserFlashes();
+
+            // 檢測長按雷射筆光點
+            if (flashCount >= 1 && isLaserStationary) {
+                // 這裡可以添加拖曳的邏輯，比如直接傳送拖曳指令或持續更新滑鼠位置
+                triggerDrag(mappedX, mappedY);
+            }
+        } else {
+            resetFlashDetection();
+        }
+    }
+
+    private void triggerDrag(int mappedX, int mappedY) {
+        // 處理拖曳邏輯，可以根據需要實現具體的拖曳操作
+        Intent dragIntent = new Intent(context, MouseAccessibilityService.class);
+        dragIntent.putExtra("drag_x", mappedX);
+        dragIntent.putExtra("drag_y", mappedY);
+        context.startService(dragIntent);
+    }
+
+
 
     private void detectLaserFlashes() {
         long currentTime = System.currentTimeMillis();

@@ -56,8 +56,14 @@ public class MyAccessibilityService extends AccessibilityService {
             clickX = intent.getIntExtra("x", clickX);
             clickY = intent.getIntExtra("y", clickY);
             isFrameLocked = intent.getBooleanExtra("isFrameLocked", isFrameLocked); // 更新状态
+
             if (isFrameLocked) { // 只有在锁定边框时才执行点击
                 performClick(clickX, clickY);
+            } else {
+                // 處理拖曳指令
+                int dragX = intent.getIntExtra("drag_x", clickX);
+                int dragY = intent.getIntExtra("drag_y", clickY);
+                performDrag(dragX, dragY);
             }
         }
         return START_STICKY;
@@ -114,6 +120,48 @@ public class MyAccessibilityService extends AccessibilityService {
 
             if (!result) {
                 Log.d("MyAccessibilityService", "Click dispatch failed");
+            }
+        } else {
+            Log.d("MyAccessibilityService", "API level not supported for gestures");
+        }
+    }
+
+    private void performDrag(int x, int y) {
+        if (x < 0 || y < 0 || x >= getDisplayWidth() || y >= getDisplayHeight()) {
+            Log.e("MyAccessibilityService", "Invalid drag coordinates: (" + x + ", " + y + ")");
+            return;
+        }
+
+        Path path = new Path();
+        path.moveTo(clickX, clickY); // 開始拖曳的位置
+        path.lineTo(x, y); // 拖曳到的位置
+
+        GestureDescription.StrokeDescription strokeDescription = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 100); // 可以調整拖曳持續時間
+        }
+        GestureDescription gestureDescription = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            boolean result = dispatchGesture(gestureDescription, new GestureResultCallback() {
+                @Override
+                public void onCompleted(GestureDescription gestureDescription) {
+                    super.onCompleted(gestureDescription);
+                    Log.d("MyAccessibilityService", "Drag performed from (" + clickX + ", " + clickY + ") to (" + x + ", " + y + ")");
+                }
+
+                @Override
+                public void onCancelled(GestureDescription gestureDescription) {
+                    super.onCancelled(gestureDescription);
+                    Log.d("MyAccessibilityService", "Drag cancelled");
+                }
+            }, null);
+
+            if (!result) {
+                Log.d("MyAccessibilityService", "Drag dispatch failed");
             }
         } else {
             Log.d("MyAccessibilityService", "API level not supported for gestures");
