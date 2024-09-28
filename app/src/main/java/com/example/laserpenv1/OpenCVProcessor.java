@@ -132,7 +132,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         MatOfPoint2f approxCurve = new MatOfPoint2f();
         Imgproc.approxPolyDP(contour2f, approxCurve, epsilon, true);
 
-        // 如果近似後的多邊形有4個頂點，我們認為它是我們要找的屏幕
+        // 偵測到四個頂點，表示找到可能的投影幕
         Point[] corners = approxCurve.toArray();
         if (corners.length == 4) {
             // 繪製綠色邊框
@@ -140,16 +140,39 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                 Imgproc.line(rgbaMat, corners[i], corners[(i + 1) % 4], new Scalar(0, 255, 0), 2);
             }
 
-            // 更新 screenBoundingRect
-            screenBoundingRect = Imgproc.boundingRect(new MatOfPoint(corners));
-
             // 在每個角落畫一個小圓圈
             for (Point corner : corners) {
                 Imgproc.circle(rgbaMat, corner, 5, new Scalar(255, 0, 0), -1);
             }
 
+            // 如果偵測到四個角並且按下按鈕，進行透視變形校正
+            if (isFrameLocked) {
+                // 定義手機屏幕的四個角
+                Point[] dstCorners = new Point[4];
+                dstCorners[0] = new Point(0, 0);                        // 左上角
+                dstCorners[1] = new Point(rgbaMat.cols(), 0);           // 右上角
+                dstCorners[2] = new Point(rgbaMat.cols(), rgbaMat.rows()); // 右下角
+                dstCorners[3] = new Point(0, rgbaMat.rows());           // 左下角
+
+                // 透視變換矩陣
+                MatOfPoint2f srcMat = new MatOfPoint2f(corners);
+                MatOfPoint2f dstMat = new MatOfPoint2f(dstCorners);
+                Mat perspectiveTransform = Imgproc.getPerspectiveTransform(srcMat, dstMat);
+
+                // 進行透視變形校正
+                Mat warpedMat = new Mat();
+                Imgproc.warpPerspective(rgbaMat, warpedMat, perspectiveTransform, rgbaMat.size());
+
+                // 將校正後的影像顯示
+                warpedMat.copyTo(rgbaMat);
+
+                // 釋放資源
+                warpedMat.release();
+                perspectiveTransform.release();
+            }
+
             if (!isFrameLocked) {
-                calculateScaleFactors();
+                calculateScaleFactors();  // 計算比例，用於後續應用
             }
         } else {
             // 如果沒有找到精確的四邊形，退回到使用邊界矩形
@@ -166,6 +189,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         contour2f.release();
         approxCurve.release();
     }
+
 
     public void toggleFrameLock() {
         isFrameLocked = !isFrameLocked;
