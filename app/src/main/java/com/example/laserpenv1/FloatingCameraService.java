@@ -148,7 +148,7 @@ public class FloatingCameraService extends Service {
                 hsvButton.setVisibility(View.GONE); // 隱藏 HSV 按鈕
                 exitButton.setVisibility(View.GONE);
             } else {
-//                whiteScreenButton.setVisibility(View.VISIBLE);
+                whiteScreenButton.setVisibility(View.VISIBLE);
                 lockFrameButton.setVisibility(View.VISIBLE);
                 hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
                 exitButton.setVisibility(View.VISIBLE);
@@ -165,19 +165,8 @@ public class FloatingCameraService extends Service {
 
         // 设置HSV按钮点击监听器
         hsvButton.setOnClickListener(v -> {
-            if (openCVProcessor != null) {
-                if (isDetectingHSV) {
-                    // 如果当前正在检测HSV，停止检测
-                    isDetectingHSV = false;
-                    Toast.makeText(FloatingCameraService.this, "停止HSV检测", Toast.LENGTH_SHORT).show();
-                } else {
-                    // 启动HSV检测
-                    isDetectingHSV = true;
-                    detectedHSVValue = null; // 重置
-                    Toast.makeText(FloatingCameraService.this, "开始检测HSV值", Toast.LENGTH_SHORT).show();
-                    openCVProcessor.startHSVDetection(); // 启动HSV检测
-                }
-            }
+            openCVProcessor.detectHSVPoints(openCVProcessor.getCurrentFrame());
+            Log.d(TAG, "HSV");
         });
 
 

@@ -14,25 +14,28 @@ import android.widget.Toast;
 public class MyAccessibilityService extends AccessibilityService {
 
     private Handler handler = new Handler();
-    private Runnable clickRunnable;
-    private int clickX = 0;
-    private int clickY = 0;
-    private boolean isFrameLocked = false; // 增加的变量
+    private Runnable dragRunnable;
+    private int startX = 0;
+    private int startY = 0;
+    private int endX = 0;
+    private int endY = 0;
+    private boolean isDragging = false;
 
     @Override
     public void onServiceConnected() {
+
         super.onServiceConnected();
         Log.d("MyAccessibilityService", "Service connected");
         Toast.makeText(this, "Accessibility Service Connected", Toast.LENGTH_SHORT).show();
 
-        // Launch the home screen
+        // 启动后返回主屏幕
         Intent startMain = new Intent(Intent.ACTION_MAIN);
         startMain.addCategory(Intent.CATEGORY_HOME);
         startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(startMain);
 
-        // Start clicking after a delay to ensure home screen is visible
-        handler.postDelayed(() -> startClicking(), 2000);
+        // 延迟启动拖移操作，确保主屏幕显示
+        handler.postDelayed(() -> startDragging(), 2000);
     }
 
     @Override
@@ -41,60 +44,58 @@ public class MyAccessibilityService extends AccessibilityService {
 
     @Override
     public void onInterrupt() {
-        handler.removeCallbacks(clickRunnable);
+        handler.removeCallbacks(dragRunnable);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        handler.removeCallbacks(clickRunnable);
+        handler.removeCallbacks(dragRunnable);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
-            clickX = intent.getIntExtra("x", clickX);
-            clickY = intent.getIntExtra("y", clickY);
-            isFrameLocked = intent.getBooleanExtra("isFrameLocked", isFrameLocked); // 更新状态
+            startX = intent.getIntExtra("x_start", startX);
+            startY = intent.getIntExtra("y_start", startY);
+            endX = intent.getIntExtra("x_end", endX);
+            endY = intent.getIntExtra("y_end", endY);
+            isDragging = true;  // 直接設置為 true
 
-            if (isFrameLocked) { // 只有在锁定边框时才执行点击
-                performClick(clickX, clickY);
-            } else {
-                // 處理拖曳指令
-                int dragX = intent.getIntExtra("drag_x", clickX);
-                int dragY = intent.getIntExtra("drag_y", clickY);
-                performDrag(dragX, dragY);
-            }
+            startDragging();  // 開始拖移
         }
         return START_STICKY;
     }
 
-
-    private void startClicking() {
-        clickRunnable = new Runnable() {
+    // 开始拖移操作
+    private void startDragging() {
+        dragRunnable = new Runnable() {
             @Override
             public void run() {
-                if (isFrameLocked) { // 只有在锁定边框时才执行点击
-                    performClick(clickX, clickY);
+                if (isDragging) {
+                    performDrag(startX, startY, endX, endY);
                 }
-                handler.postDelayed(this, 1000); // Repeat every second
+                handler.postDelayed(this, 10000); // 每秒执行一次拖移操作
             }
         };
-        handler.post(clickRunnable);
+        handler.post(dragRunnable);
     }
 
-    private void performClick(int x, int y) {
-        if (x < 0 || y < 0 || x >= getDisplayWidth() || y >= getDisplayHeight()) {
-            Log.e("MyAccessibilityService", "Invalid click coordinates: (" + x + ", " + y + ")");
+    // 执行拖移手势
+    private void performDrag(int startX, int startY, int endX, int endY) {
+        if (startX < 0 || startY < 0 || startX >= getDisplayWidth() || startY >= getDisplayHeight()
+                || endX < 0 || endY < 0 || endX >= getDisplayWidth() || endY >= getDisplayHeight()) {
+            Log.e("MyAccessibilityService", "Invalid drag coordinates: from (" + startX + ", " + startY + ") to (" + endX + ", " + endY + ")");
             return;
         }
 
         Path path = new Path();
-        path.moveTo(x, y);
+        path.moveTo(startX, startY);
+        path.lineTo(endX, endY);
 
         GestureDescription.StrokeDescription strokeDescription = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 100);
+            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 500); // 500ms 进行滑动
         }
         GestureDescription gestureDescription = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -106,51 +107,8 @@ public class MyAccessibilityService extends AccessibilityService {
                 @Override
                 public void onCompleted(GestureDescription gestureDescription) {
                     super.onCompleted(gestureDescription);
-                    // 只有点击成功时才显示提示
-                    Toast.makeText(MyAccessibilityService.this, "Click performed", Toast.LENGTH_SHORT).show();
-                    Log.d("MyAccessibilityService", "Click performed at (" + x + ", " + y + ")");
-                }
-
-                @Override
-                public void onCancelled(GestureDescription gestureDescription) {
-                    super.onCancelled(gestureDescription);
-                    Log.d("MyAccessibilityService", "Click cancelled at (" + x + ", " + y + ")");
-                }
-            }, null);
-
-            if (!result) {
-                Log.d("MyAccessibilityService", "Click dispatch failed");
-            }
-        } else {
-            Log.d("MyAccessibilityService", "API level not supported for gestures");
-        }
-    }
-
-    private void performDrag(int x, int y) {
-        if (x < 0 || y < 0 || x >= getDisplayWidth() || y >= getDisplayHeight()) {
-            Log.e("MyAccessibilityService", "Invalid drag coordinates: (" + x + ", " + y + ")");
-            return;
-        }
-
-        Path path = new Path();
-        path.moveTo(clickX, clickY); // 開始拖曳的位置
-        path.lineTo(x, y); // 拖曳到的位置
-
-        GestureDescription.StrokeDescription strokeDescription = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 100); // 可以調整拖曳持續時間
-        }
-        GestureDescription gestureDescription = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            boolean result = dispatchGesture(gestureDescription, new GestureResultCallback() {
-                @Override
-                public void onCompleted(GestureDescription gestureDescription) {
-                    super.onCompleted(gestureDescription);
-                    Log.d("MyAccessibilityService", "Drag performed from (" + clickX + ", " + clickY + ") to (" + x + ", " + y + ")");
+                    Toast.makeText(MyAccessibilityService.this, "Drag performed", Toast.LENGTH_SHORT).show();
+                    Log.d("MyAccessibilityService", "Drag performed from (" + startX + ", " + startY + ") to (" + endX + ", " + endY + ")");
                 }
 
                 @Override
@@ -167,7 +125,6 @@ public class MyAccessibilityService extends AccessibilityService {
             Log.d("MyAccessibilityService", "API level not supported for gestures");
         }
     }
-
 
     // 获取屏幕宽度
     private int getDisplayWidth() {

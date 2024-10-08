@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.WindowManager;
 import android.widget.Toast;
 
@@ -212,14 +213,13 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Mat hsv = new Mat();
         Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGB2HSV);
 
-        Scalar lowerGreen = new Scalar(30, 100, 100);
-        Scalar upperGreen = new Scalar(90, 255, 255);
+        //65,85,245
+        // tv 60,50,200
+        Scalar lowerGreen = new Scalar(50,40,190);
+        Scalar upperGreen = new Scalar(70,60,210);
 
         Mat greenMask = new Mat();
         Core.inRange(hsv, lowerGreen, upperGreen, greenMask);
-
-        Mat contrast = new Mat();
-        Core.convertScaleAbs(hsv, contrast, 2, 0);
 
         Mat dilatedMask = new Mat();
         Imgproc.dilate(greenMask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(15, 15)));
@@ -242,18 +242,15 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             int laserX = boundingRect.x + boundingRect.width / 2;
             int laserY = boundingRect.y + boundingRect.height / 2;
 
-            int mappedX = displayWidth - ((int) (((laserY - screenBoundingRect.y) / (float) screenBoundingRect.height) * displayWidth));
             int mappedY = (int) (((laserX - screenBoundingRect.x) / (float) screenBoundingRect.width) * displayHeight);
+            int mappedX = displayWidth - (int) (((laserY - screenBoundingRect.y) / (float) screenBoundingRect.height) * displayWidth);
 
             Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
 
             lastLaserPoint = new Point(mappedX, mappedY);
 
-            // 處理雷射點閃爍與點擊邏輯
-            handleLaserClick(mappedX, mappedY);
-
-            // 處理拖曳邏輯
-            handleLaserDrag(mappedX, mappedY);
+            // 進行閃爍判斷和拖移處理
+            processLaserFlashing(mappedX, mappedY);
 
             // 傳送滑鼠移動指令
             Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
@@ -264,10 +261,39 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             if (pointListener != null) {
                 pointListener.onPointDetected(mappedX, mappedY);
             }
+
         } else {
-            resetFlashDetection(); // 找不到雷射點時重置閃爍檢測
+            resetFlashDetection();
         }
     }
+    private void processLaserFlashing(int mappedX, int mappedY) {
+        if (lastLaserPoint != null) {
+            // 获取上一个激光笔光点的坐标
+            int lastX = (int) lastLaserPoint.x;
+            int lastY = (int) lastLaserPoint.y;
+
+            // 将拖移起点和终点传递给AccessibilityService
+            Intent intent = new Intent(context, MyAccessibilityService.class);
+            intent.putExtra("x_start", 600);  // 起点X
+            intent.putExtra("y_start", 1000);  // 起点Y
+            intent.putExtra("x_end", 200);  // 终点X
+            intent.putExtra("y_end", 1000);  // 终点Y
+            context.startService(intent);  // 启动服务进行拖移
+
+            Log.d("OpenCVProcessor", "Dragging from (" + lastX + ", " + lastY + ") to (" + mappedX + ", " + mappedY + ")");
+        }
+
+        // 更新最后的光点位置
+        lastLaserPoint = new Point(mappedX, mappedY);
+    }
+
+
+
+
+
+
+
+
 
     private void handleLaserClick(int mappedX, int mappedY) {
         // 判斷雷射點是否穩定
@@ -289,29 +315,8 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         }
     }
 
-    private void handleLaserDrag(int mappedX, int mappedY) {
-        // 判斷雷射點是否穩定並檢測閃爍
-        if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
-            // 檢測一次閃爍
-            detectLaserFlashes();
 
-            // 檢測長按雷射筆光點
-            if (flashCount >= 1 && isLaserStationary) {
-                // 這裡可以添加拖曳的邏輯，比如直接傳送拖曳指令或持續更新滑鼠位置
-                triggerDrag(mappedX, mappedY);
-            }
-        } else {
-            resetFlashDetection();
-        }
-    }
 
-    private void triggerDrag(int mappedX, int mappedY) {
-        // 處理拖曳邏輯，可以根據需要實現具體的拖曳操作
-        Intent dragIntent = new Intent(context, MouseAccessibilityService.class);
-        dragIntent.putExtra("drag_x", mappedX);
-        dragIntent.putExtra("drag_y", mappedY);
-        context.startService(dragIntent);
-    }
 
 
 
@@ -324,6 +329,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
     private void resetFlashDetection() {
+        isLaserStationary = false;
         flashCount = 0;
         lastFlashTime = 0;
     }
@@ -355,56 +361,53 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             detectHSVPoints(frame);  // 开始检测HSV光点
         }
     }
-    private void detectHSVPoints(Mat rgbaMat) {
-        // 将图像转换为HSV色彩空间
-        Mat hsv = new Mat();
-        Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGBA2RGB);
-        Imgproc.cvtColor(hsv, hsv, Imgproc.COLOR_RGB2HSV);
+    public void detectHSVPoints(Mat rgbaMat) {
+        Mat hsvMat = new Mat();
+        Imgproc.cvtColor(rgbaMat, hsvMat, Imgproc.COLOR_RGB2HSV);
 
-        // 背景减除与二值化
+        // 這裡的範圍可以根據需要調整
+        Scalar lowerHSV = new Scalar(55, 75, 235); // 下限
+        Scalar upperHSV = new Scalar(75, 95, 255); // 上限
+
         Mat mask = new Mat();
-        Core.inRange(hsv, new Scalar(0, 0, 0), new Scalar(180, 255, 255), mask); // 提取整个图像
+        Core.inRange(hsvMat, lowerHSV, upperHSV, mask);
 
-        // 腐蚀与膨胀处理
-        Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(9, 9));
-        Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_OPEN, kernel);
-        Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_CLOSE, kernel);
+        Mat dilatedMask = new Mat();
+        Imgproc.dilate(mask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(15, 15)));
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
-        Imgproc.findContours(mask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(dilatedMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
-        if (!contours.isEmpty()) {
-            // 提取第一个轮廓的中心
-            Rect boundingRect = Imgproc.boundingRect(contours.get(0));
+        Rect boundingRect = null;
+        for (MatOfPoint contour : contours) {
+            Rect rect = Imgproc.boundingRect(contour);
+            if (boundingRect == null || rect.area() > boundingRect.area()) {
+                boundingRect = rect;
+            }
+        }
+
+        if (boundingRect != null) {
             int laserX = boundingRect.x + boundingRect.width / 2;
             int laserY = boundingRect.y + boundingRect.height / 2;
 
-            // 计算并存储HSV值
-            detectedHSVValue = new Scalar(
-                    Core.mean(hsv.submat(boundingRect)).val[0],
-                    Core.mean(hsv.submat(boundingRect)).val[1],
-                    Core.mean(hsv.submat(boundingRect)).val[2]
-            );
+            Log.d(TAG, "Laser Point Detected: " + laserX + ", " + laserY);
 
-            // 显示HSV值
-            mainHandler.post(() -> Toast.makeText(context, "检测到HSV值: " + detectedHSVValue.toString(), Toast.LENGTH_SHORT).show());
+            Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
 
-            // 结束HSV检测
-            isDetectingHSV = false;
-
-            // 存储动态HSV范围
-            lowerHSV = new Scalar(
-                    Math.max(detectedHSVValue.val[0] - 10, 0),
-                    Math.max(detectedHSVValue.val[1] - 50, 0),
-                    Math.max(detectedHSVValue.val[2] - 50, 0)
-            );
-            upperHSV = new Scalar(
-                    Math.min(detectedHSVValue.val[0] + 10, 180),
-                    Math.min(detectedHSVValue.val[1] + 50, 255),
-                    Math.min(detectedHSVValue.val[2] + 50, 255)
-            );
-            isDetectingHSV = false;
+            if (pointListener != null) {
+                pointListener.onPointDetected(laserX, laserY);
+            }
+        } else {
+            Log.d(TAG, "No laser point detected");
         }
+
+        hsvMat.release();
+        mask.release();
+        dilatedMask.release();
+        hierarchy.release();
+    }
+    public Mat getCurrentFrame() {
+        return frame; // 返回当前帧
     }
 }

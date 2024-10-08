@@ -1,18 +1,11 @@
 plugins {
     alias(libs.plugins.androidApplication)
-    id("com.chaquo.python")
 }
 
 android {
     namespace 'com.example.laserpenv1'
     compileSdk 34
 
-
-    flavorDimensions "pyVersion"
-    productFlavors {
-        create("py310") { dimension = "pyVersion" }
-        create("py311") { dimension = "pyVersion" }
-    }
 
     defaultConfig {
         applicationId "com.example.laserpenv1"
@@ -27,9 +20,6 @@ android {
             abiFilters "arm64-v8a", "x86_64"
         }
 
-        python {
-            version "3.12"
-        }
     }
 
     buildTypes {
@@ -44,15 +34,7 @@ android {
     }
 }
 
-chaquopy {
-    productFlavors {
-        getByName("py310") { version = "3.10" }
-        getByName("py311") { version = "3.11" }
-    }
-    defaultConfig {
-        buildPython("C:/path/to/python.exe")
-    }
-}
+
 
 dependencies {
 
