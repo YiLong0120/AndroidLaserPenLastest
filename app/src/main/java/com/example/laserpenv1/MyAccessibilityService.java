@@ -11,6 +11,8 @@ import android.util.Log;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+
 public class MyAccessibilityService extends AccessibilityService {
 
     private Handler handler = new Handler();
@@ -20,6 +22,7 @@ public class MyAccessibilityService extends AccessibilityService {
     private int endX = 0;
     private int endY = 0;
     private boolean isDragging = false;
+    private boolean isDraggingInProgress = false;  // 标记当前是否有拖移进行中
 
     @Override
     public void onServiceConnected() {
@@ -35,7 +38,7 @@ public class MyAccessibilityService extends AccessibilityService {
         startActivity(startMain);
 
         // 延迟启动拖移操作，确保主屏幕显示
-        handler.postDelayed(() -> startDragging(), 2000);
+//        handler.postDelayed(() -> startDragging(), 2000);
     }
 
     @Override
@@ -55,48 +58,55 @@ public class MyAccessibilityService extends AccessibilityService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
-            startX = intent.getIntExtra("x_start", startX);
-            startY = intent.getIntExtra("y_start", startY);
-            endX = intent.getIntExtra("x_end", endX);
-            endY = intent.getIntExtra("y_end", endY);
-            isDragging = true;  // 直接設置為 true
+        if (intent != null && !isDraggingInProgress) {
+            ArrayList<int[]> coordinates = (ArrayList<int[]>) intent.getSerializableExtra("coordinates");
 
-            startDragging();  // 開始拖移
+            if (coordinates != null && coordinates.size() >= 2) {
+                // 开始拖移
+                isDraggingInProgress = true;
+                performDrag(coordinates);
+            } else {
+                Log.e("MyAccessibilityService", "Invalid coordinates for drag");
+            }
         }
         return START_STICKY;
     }
 
+
     // 开始拖移操作
-    private void startDragging() {
-        dragRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (isDragging) {
-                    performDrag(startX, startY, endX, endY);
-                }
-                handler.postDelayed(this, 10000); // 每秒执行一次拖移操作
-            }
-        };
-        handler.post(dragRunnable);
-    }
+//    private void startDragging() {
+//        dragRunnable = new Runnable() {
+//            @Override
+//            public void run() {
+//                if (isDragging) {
+//                    performDrag(startX, startY, endX, endY);
+//                }
+//                handler.postDelayed(this, 10000); // 每秒执行一次拖移操作
+//            }
+//        };
+//        handler.post(dragRunnable);
+//    }
 
     // 执行拖移手势
-    private void performDrag(int startX, int startY, int endX, int endY) {
-        if (startX < 0 || startY < 0 || startX >= getDisplayWidth() || startY >= getDisplayHeight()
-                || endX < 0 || endY < 0 || endX >= getDisplayWidth() || endY >= getDisplayHeight()) {
-            Log.e("MyAccessibilityService", "Invalid drag coordinates: from (" + startX + ", " + startY + ") to (" + endX + ", " + endY + ")");
-            return;
-        }
-
+    // 执行拖移操作
+    private void performDrag(ArrayList<int[]> coordinates) {
         Path path = new Path();
-        path.moveTo(startX, startY);
-        path.lineTo(endX, endY);
+
+        // 根据第一个点移动到初始位置
+        int[] firstPoint = coordinates.get(0);
+        path.moveTo(firstPoint[0], firstPoint[1]);
+
+        // 依次将所有点连接起来，生成完整路径
+        for (int i = 1; i < coordinates.size(); i++) {
+            int[] point = coordinates.get(i);
+            path.lineTo(point[0], point[1]);
+        }
 
         GestureDescription.StrokeDescription strokeDescription = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 500); // 500ms 进行滑动
+            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 1000); // 根据轨迹拖移
         }
+
         GestureDescription gestureDescription = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
@@ -107,19 +117,21 @@ public class MyAccessibilityService extends AccessibilityService {
                 @Override
                 public void onCompleted(GestureDescription gestureDescription) {
                     super.onCompleted(gestureDescription);
-                    Toast.makeText(MyAccessibilityService.this, "Drag performed", Toast.LENGTH_SHORT).show();
-                    Log.d("MyAccessibilityService", "Drag performed from (" + startX + ", " + startY + ") to (" + endX + ", " + endY + ")");
+                    isDraggingInProgress = false;  // 拖移完成
+                    Log.d("MyAccessibilityService", "Drag performed successfully");
                 }
 
                 @Override
                 public void onCancelled(GestureDescription gestureDescription) {
                     super.onCancelled(gestureDescription);
+                    isDraggingInProgress = false;  // 拖移取消
                     Log.d("MyAccessibilityService", "Drag cancelled");
                 }
             }, null);
 
             if (!result) {
                 Log.d("MyAccessibilityService", "Drag dispatch failed");
+                isDraggingInProgress = false;
             }
         } else {
             Log.d("MyAccessibilityService", "API level not supported for gestures");

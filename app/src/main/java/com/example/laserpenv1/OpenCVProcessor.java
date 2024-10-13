@@ -53,6 +53,9 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private int flashCount = 0;
     private long lastFlashTime = 0;
     private static final int FLASH_DELAY = 500; // 定義閃爍間隔，0.5秒
+    private ArrayList<Point> laserPoints = new ArrayList<>();
+    private boolean isDraggingInProgress = false;
+
 
     public interface PointListener {
         void onPointDetected(int x, int y);
@@ -209,14 +212,15 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         return screenBoundingRect;
     }
 
-    private void detectLaserPoints(Mat rgbaMat) {
+    private void detectLaserPoints(Mat rgbaMat)
+    {
         Mat hsv = new Mat();
         Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGB2HSV);
 
-        //65,85,245
+        //40,170,120
         // tv 60,50,200
-        Scalar lowerGreen = new Scalar(50,40,190);
-        Scalar upperGreen = new Scalar(70,60,210);
+        Scalar lowerGreen = new Scalar(30,160,110);
+        Scalar upperGreen = new Scalar(50,180,130);
 
         Mat greenMask = new Mat();
         Core.inRange(hsv, lowerGreen, upperGreen, greenMask);
@@ -267,31 +271,42 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         }
     }
     private void processLaserFlashing(int mappedX, int mappedY) {
-        if (lastLaserPoint != null) {
-            // 获取上一个激光笔光点的坐标
-            int lastX = (int) lastLaserPoint.x;
-            int lastY = (int) lastLaserPoint.y;
+        // 如果正在进行拖移操作，则不再捕获新的拖移动作
+        if (isDraggingInProgress) {
+            return;
+        }
 
-            // 将拖移起点和终点传递给AccessibilityService
+        // 将当前的激光笔坐标添加到列表中
+        laserPoints.add(new Point(mappedX, mappedY));
+
+        // 当我们检测到足够的点（例如 10 个），就进行拖移
+        if (laserPoints.size() >= 10) {
+            // 将激光笔轨迹传递给 AccessibilityService
             Intent intent = new Intent(context, MyAccessibilityService.class);
-            intent.putExtra("x_start", 600);  // 起点X
-            intent.putExtra("y_start", 1000);  // 起点Y
-            intent.putExtra("x_end", 200);  // 终点X
-            intent.putExtra("y_end", 1000);  // 终点Y
+            ArrayList<int[]> coordinates = new ArrayList<>();
+
+            for (Point point : laserPoints) {
+                coordinates.add(new int[]{(int) point.x, (int) point.y});
+            }
+
+            intent.putExtra("coordinates", coordinates);
             context.startService(intent);  // 启动服务进行拖移
 
-            Log.d("OpenCVProcessor", "Dragging from (" + lastX + ", " + lastY + ") to (" + mappedX + ", " + mappedY + ")");
+            Log.d("OpenCVProcessor", "Starting drag with coordinates: " + coordinates.toString());
+
+            // 清空坐标点列表并标记为拖移进行中
+            isDraggingInProgress = true;
+
+            // 使用runOnUiThread来保证Handler在主线程中运行
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                laserPoints.clear(); // 清空已经拖移的坐标
+                isDraggingInProgress = false; // 拖移完成，允许新的拖移
+            }, 1000); // 拖移持续时间（可根据需要调整）
         }
 
         // 更新最后的光点位置
         lastLaserPoint = new Point(mappedX, mappedY);
     }
-
-
-
-
-
-
 
 
 
