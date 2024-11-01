@@ -67,6 +67,10 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private boolean isDraggingInProgress = false;
     private Mat perspectiveTransform;
     private Point[] savedCorners = null;
+    int getRotation;
+    // 假设手机屏幕的宽高
+    int screenWidth;
+    int screenHeight;
 
 
     public interface PointListener {
@@ -111,10 +115,11 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         // 根据当前屏幕方向旋转画面
         WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         int rotation = windowManager.getDefaultDisplay().getRotation();
-
+        Log.d(TAG, "rotation:" + rotation);
         switch (rotation) {
             case Surface.ROTATION_90: // 屏幕左旋90度
                 Core.rotate(frame, frame, Core.ROTATE_90_COUNTERCLOCKWISE);
+                getRotation = rotation;
                 break;
             case Surface.ROTATION_180: // 屏幕倒转180度
                 Core.rotate(frame, frame, Core.ROTATE_180);
@@ -337,9 +342,14 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
 
     private void calculateScaleFactors() {
-        // 假设手机屏幕的宽高
-        int screenWidth = displayWidth;  // 替换为实际手机屏幕的宽度
-        int screenHeight = displayHeight; // 替换为实际手机屏幕的高度
+        if(getRotation == 0){
+            screenWidth = displayWidth;  // 替换为实际手机屏幕的宽度
+            screenHeight = displayHeight; // 替换为实际手机屏幕的高度
+        }else{
+            screenWidth = displayHeight;  // 替换为实际手机屏幕的宽度
+            screenHeight = displayWidth; // 替换为实际手机屏幕的高度
+        }
+
 
         // 定义一个Mat用于存储投影边框的四个角点
         Mat srcCornersMat = new MatOfPoint2f(savedCorners); // savedCorners 为检测到的四个角点
