@@ -90,8 +90,20 @@ public class MyAccessibilityService extends AccessibilityService {
     // 执行拖移手势
     // 执行拖移操作
     private void performDrag(ArrayList<int[]> coordinates) {
-        Path path = new Path();
+        if (coordinates == null || coordinates.isEmpty()) {
+            Log.e("GestureError", "Coordinates list is empty or null");
+            return;
+        }
 
+        // 检查所有点的坐标是否有效
+        for (int[] point : coordinates) {
+            if (point.length < 2 || point[0] < 0 || point[1] < 0) {
+                Log.e("GestureError", "Invalid drag coordinates: (" + point[0] + ", " + point[1] + ")");
+                return;
+            }
+        }
+
+        Path path = new Path();
         // 根据第一个点移动到初始位置
         int[] firstPoint = coordinates.get(0);
         path.moveTo(firstPoint[0], firstPoint[1]);
@@ -137,6 +149,7 @@ public class MyAccessibilityService extends AccessibilityService {
             Log.d("MyAccessibilityService", "API level not supported for gestures");
         }
     }
+
 
     // 获取屏幕宽度
     private int getDisplayWidth() {

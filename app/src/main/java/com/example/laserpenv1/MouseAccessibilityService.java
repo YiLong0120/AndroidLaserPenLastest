@@ -81,11 +81,11 @@ public class MouseAccessibilityService extends Service {
             int y = intent.getIntExtra("y", cursorLayout.y);
             moveTo(x, y);
 
-            // 向 MyAccessibilityService 传递坐标
-            Intent clickIntent = new Intent(this, MyAccessibilityService.class);
-            clickIntent.putExtra("x", x);
-            clickIntent.putExtra("y", y);
-            startService(clickIntent);
+//            // 向 MyAccessibilityService 传递坐标
+//            Intent clickIntent = new Intent(this, MyAccessibilityService.class);
+//            clickIntent.putExtra("x", x);
+//            clickIntent.putExtra("y", y);
+//            startService(clickIntent);
         }
         return START_STICKY;
     }

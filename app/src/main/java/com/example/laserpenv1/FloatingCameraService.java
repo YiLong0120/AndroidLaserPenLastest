@@ -20,6 +20,7 @@ import android.widget.Toast;
 
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
 
 public class FloatingCameraService extends Service {
@@ -54,7 +55,7 @@ public class FloatingCameraService extends Service {
             }
         }
 
-        // Initialize OpenCV
+        // 初始化 OpenCV
         if (!OpenCVLoader.initDebug()) {
             Log.e(TAG, "OpenCV initialization failed!");
             stopSelf();
@@ -62,7 +63,7 @@ public class FloatingCameraService extends Service {
         }
         Log.i(TAG, "OpenCV loaded successfully");
 
-        // Set up the floating window layout parameters for camera view
+        // 設定相機視圖的浮窗佈局參數
         WindowManager.LayoutParams cameraParams = new WindowManager.LayoutParams(
                 200, 150,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
@@ -71,23 +72,23 @@ public class FloatingCameraService extends Service {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
 
-        // Position the floating camera view at the top center
+        // 將浮動相機視圖放置在頂部中心
         cameraParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        cameraParams.y = 100;
+        cameraParams.y = 10;
 
-        // Inflate the floating view layout
+        // 膨脹浮動視圖佈局
         mFloatingView = LayoutInflater.from(this).inflate(R.layout.activity_mini_camera, null);
 
-        // Initialize the OpenCV camera view
+        // 初始化 OpenCV 相機視圖
         mOpenCvCameraView = mFloatingView.findViewById(R.id.miniCameraView);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
 
-        // Set up the OpenCV processor
+        // 設定OpenCV processor
         openCVProcessor = new OpenCVProcessor(this, null);
         mOpenCvCameraView.setCvCameraViewListener(openCVProcessor);
         mOpenCvCameraView.setCameraPermissionGranted();  // <-- Important for API 23+
 
-        // Ensure the SurfaceView is ready before enabling the camera
+        // 在啟用相機之前確保 SurfaceView 已準備好
         mOpenCvCameraView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
@@ -96,7 +97,7 @@ public class FloatingCameraService extends Service {
 
             @Override
             public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                // You can adjust camera parameters here if needed
+                // 如果需要，您可以在此處調整相機參數
             }
 
             @Override
@@ -105,17 +106,17 @@ public class FloatingCameraService extends Service {
             }
         });
 
-        // Add the floating view to the window manager
+        // 將浮動視圖新增至window manager
         mWindowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         mWindowManager.addView(mFloatingView, cameraParams);
 
-        // Provide a message to inform the user
+        // 提供訊息通知用戶
         Toast.makeText(this, "Floating Camera Started", Toast.LENGTH_SHORT).show();
 
-        // Inflate the floating button layout and add it to the floating view
+        // 膨脹浮動按鈕佈局並將其新增至浮動視圖
         View floatingButton = LayoutInflater.from(this).inflate(R.layout.floating_button_layout, null);
 
-        // Set up the floating button layout parameters
+        // 設定浮動按鈕佈局參數
         WindowManager.LayoutParams buttonParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -125,22 +126,22 @@ public class FloatingCameraService extends Service {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
 
-        // Position the floating button at the top left
+        // 將浮動按鈕放置在左上角
         buttonParams.gravity = Gravity.TOP | Gravity.START;
         buttonParams.x = 10; // Offset from the left
         buttonParams.y = 10; // Offset from the top
 
-        // Add the floating button to the window manager
+        // 將浮動按鈕新增至視窗管理器
         mWindowManager.addView(floatingButton, buttonParams);
 
-        // Set up button click events
+        // 設定按鈕點擊事件
         Button menuButton = floatingButton.findViewById(R.id.floating_button);
         Button whiteScreenButton = floatingButton.findViewById(R.id.white_screen_button);
         Button lockFrameButton = floatingButton.findViewById(R.id.lock_frame_button);
         Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
 
-        // Set the menu button click listener
+        // 設定選單按鈕點擊監聽器
         menuButton.setOnClickListener(v -> {
             if (isMenuExpanded) {
                 whiteScreenButton.setVisibility(View.GONE);
@@ -156,7 +157,7 @@ public class FloatingCameraService extends Service {
             isMenuExpanded = !isMenuExpanded;
         });
 
-        // Set the lock frame button click listener
+        // 設定鎖框按鈕點擊監聽器
         lockFrameButton.setOnClickListener(v -> {
             if (openCVProcessor != null) {
                 openCVProcessor.toggleFrameLock();
@@ -165,8 +166,37 @@ public class FloatingCameraService extends Service {
 
         // 设置HSV按钮点击监听器
         hsvButton.setOnClickListener(v -> {
-            openCVProcessor.detectHSVPoints(openCVProcessor.getCurrentFrame());
-            Log.d(TAG, "HSV");
+            if (!isDetectingHSV) {
+                // 如果当前未开始检测，则启动检测
+                isDetectingHSV = true;
+                hsvButton.setText("停止检测"); // 修改按钮文本以指示状态
+                Log.d(TAG, "开始检测HSV");
+
+                // 启动一个新的线程来进行HSV检测，避免阻塞UI线程
+                new Thread(() -> {
+                    while (isDetectingHSV) {
+                        // 调用OpenCVProcessor的detectHSVPoints方法
+                        if (openCVProcessor != null) {
+                            Mat currentFrame = openCVProcessor.getCurrentFrame();
+                            if (currentFrame != null) {
+                                openCVProcessor.detectHSVPoints(currentFrame);
+                            }
+                        }
+
+                        // 暂停一段时间，避免过于频繁地调用
+                        try {
+                            Thread.sleep(100); // 例如每100毫秒调用一次
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }).start();
+            } else {
+                // 如果当前正在检测，则停止检测
+                isDetectingHSV = false;
+                hsvButton.setText("开始检测"); // 恢复按钮文本
+                Log.d(TAG, "停止检测HSV");
+            }
         });
 
 
