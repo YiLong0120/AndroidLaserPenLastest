@@ -169,8 +169,8 @@ public class FloatingCameraService extends Service {
             if (!isDetectingHSV) {
                 // 如果当前未开始检测，则启动检测
                 isDetectingHSV = true;
-                hsvButton.setText("停止检测"); // 修改按钮文本以指示状态
-                Log.d(TAG, "开始检测HSV");
+                hsvButton.setText("Record HSV"); // 修改按钮文本以指示状态
+                Log.d(TAG, "detect HSV");
 
                 // 启动一个新的线程来进行HSV检测，避免阻塞UI线程
                 new Thread(() -> {
@@ -194,8 +194,8 @@ public class FloatingCameraService extends Service {
             } else {
                 // 如果当前正在检测，则停止检测
                 isDetectingHSV = false;
-                hsvButton.setText("开始检测"); // 恢复按钮文本
-                Log.d(TAG, "停止检测HSV");
+                hsvButton.setText("stop detecting"); // 恢复按钮文本
+                Log.d(TAG, "stop detecting");
             }
         });
 

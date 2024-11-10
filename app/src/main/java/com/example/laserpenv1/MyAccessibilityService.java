@@ -23,12 +23,14 @@ public class MyAccessibilityService extends AccessibilityService {
     private int endY = 0;
     private boolean isDragging = false;
     private boolean isDraggingInProgress = false;  // 标记当前是否有拖移进行中
+    String TAG = "MyAccessibilityService";
+
 
     @Override
     public void onServiceConnected() {
 
         super.onServiceConnected();
-        Log.d("MyAccessibilityService", "Service connected");
+        Log.d(TAG, "Service connected");
         Toast.makeText(this, "Accessibility Service Connected", Toast.LENGTH_SHORT).show();
 
         // 启动后返回主屏幕
@@ -58,37 +60,25 @@ public class MyAccessibilityService extends AccessibilityService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && !isDraggingInProgress) {
-            ArrayList<int[]> coordinates = (ArrayList<int[]>) intent.getSerializableExtra("coordinates");
+        if (intent != null) {
+            String actionType = intent.getStringExtra("action_type");
 
-            if (coordinates != null && coordinates.size() >= 2) {
-                // 开始拖移
-                isDraggingInProgress = true;
-                performDrag(coordinates);
-            } else {
-                Log.e("MyAccessibilityService", "Invalid coordinates for drag");
+            if ("click".equals(actionType)) {
+                int clickX = intent.getIntExtra("x", -1);
+                int clickY = intent.getIntExtra("y", -1);
+                performClick(clickX, clickY);
+            } else if ("drag".equals(actionType)) {
+                ArrayList<int[]> coordinates = (ArrayList<int[]>) intent.getSerializableExtra("coordinates");
+                if (coordinates != null && coordinates.size() >= 2) {
+                    performDrag(coordinates);
+                } else {
+                    Log.e(TAG, "Invalid coordinates for drag");
+                }
             }
         }
         return START_STICKY;
     }
 
-
-    // 开始拖移操作
-//    private void startDragging() {
-//        dragRunnable = new Runnable() {
-//            @Override
-//            public void run() {
-//                if (isDragging) {
-//                    performDrag(startX, startY, endX, endY);
-//                }
-//                handler.postDelayed(this, 10000); // 每秒执行一次拖移操作
-//            }
-//        };
-//        handler.post(dragRunnable);
-//    }
-
-    // 执行拖移手势
-    // 执行拖移操作
     private void performDrag(ArrayList<int[]> coordinates) {
         if (coordinates == null || coordinates.isEmpty()) {
             Log.e("GestureError", "Coordinates list is empty or null");
@@ -130,23 +120,64 @@ public class MyAccessibilityService extends AccessibilityService {
                 public void onCompleted(GestureDescription gestureDescription) {
                     super.onCompleted(gestureDescription);
                     isDraggingInProgress = false;  // 拖移完成
-                    Log.d("MyAccessibilityService", "Drag performed successfully");
+                    Log.d(TAG, "Drag performed successfully");
                 }
 
                 @Override
                 public void onCancelled(GestureDescription gestureDescription) {
                     super.onCancelled(gestureDescription);
                     isDraggingInProgress = false;  // 拖移取消
-                    Log.d("MyAccessibilityService", "Drag cancelled");
+                    Log.d(TAG, "Drag cancelled");
                 }
             }, null);
 
             if (!result) {
-                Log.d("MyAccessibilityService", "Drag dispatch failed");
+                Log.d(TAG, "Drag dispatch failed");
                 isDraggingInProgress = false;
             }
         } else {
-            Log.d("MyAccessibilityService", "API level not supported for gestures");
+            Log.d(TAG, "API level not supported for gestures");
+        }
+    }
+
+    private void performClick(int x, int y) {
+        if (x < 0 || y < 0 || x >= getDisplayWidth() || y >= getDisplayHeight()) {
+            Log.e(TAG, "Invalid click coordinates: (" + x + ", " + y + ")");
+            return;
+        }
+
+        Path path = new Path();
+        path.moveTo(x, y);
+
+        GestureDescription.StrokeDescription strokeDescription = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 100);
+        }
+        GestureDescription gestureDescription = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            boolean result = dispatchGesture(gestureDescription, new GestureResultCallback() {
+                @Override
+                public void onCompleted(GestureDescription gestureDescription) {
+                    super.onCompleted(gestureDescription);
+//                    Toast.makeText(ClickAccessibilityService.this, "Click performed", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "Click performed at (" + x + ", " + y + ")");
+                }
+
+                @Override
+                public void onCancelled(GestureDescription gestureDescription) {
+                    super.onCancelled(gestureDescription);
+                    Log.d(TAG, "Click cancelled at (" + x + ", " + y + ")");
+                }
+            }, null);
+            if (!result) {
+                Log.d(TAG, "Click dispatch failed");
+            }
+        } else {
+            Log.d(TAG, "API level not supported for gestures");
         }
     }
 

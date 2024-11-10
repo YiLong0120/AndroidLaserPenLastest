@@ -71,6 +71,13 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     // 假设手机屏幕的宽高
     int screenWidth;
     int screenHeight;
+    boolean wasLaserPreviouslyVisible = false;
+    long windowStartTime = 0;
+    long lastLaserVisibleTime = 0;
+    boolean cnadrag = false;
+    boolean hasTriggeredClick = false;
+    private ArrayList<int[]> laserCoordinates = new ArrayList<>();
+
 
 
     public interface PointListener {
@@ -197,12 +204,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             savedCorners[2] = temp;
             logCorners("Detected Corners", savedCorners); // 添加这行
 
-            // 在每个角落绘制数字0, 1, 2, 3
-            for (int i = 0; i < corners.length; i++) {
-                Imgproc.circle(rgbaMat, corners[i], 10, new Scalar(0, 0, 255), -1); // 在每个角上画红色圆点
-                Imgproc.putText(rgbaMat, String.valueOf(i), new Point(corners[i].x + 10, corners[i].y - 10),
-                        Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1); // 绘制数字
-            }
+
 
             // 定义手机屏幕的四个角
             Point[] dstCorners = new Point[4];
@@ -246,6 +248,12 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private void drawProjectionFrame(Mat rgbaMat, Point[] corners) {
         for (int i = 0; i < 4; i++) {
             Imgproc.line(rgbaMat, corners[i], corners[(i + 1) % 4], new Scalar(0, 255, 0), 2);
+        }
+        // 在每个角落绘制数字0, 1, 2, 3
+        for (int i = 0; i < corners.length; i++) {
+            Imgproc.circle(rgbaMat, corners[i], 10, new Scalar(0, 0, 255), -1); // 在每个角上画红色圆点
+            Imgproc.putText(rgbaMat, String.valueOf(i), new Point(corners[i].x + 10, corners[i].y - 10),
+                    Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1); // 绘制数字
         }
     }
 
@@ -292,6 +300,9 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             }
         }
 
+        boolean laserDetected = false; // 标记是否检测到激光笔光点
+        int scaledX = 0, scaledY = 0;
+
         if (boundingRect != null && perspectiveTransform != null) {
             // 激光笔光点的原始坐标
             int laserX = boundingRect.x + boundingRect.width / 2;
@@ -308,29 +319,26 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             int correctedY = (int) correctedPoint.y;
 
             // 应用比例因子进行缩放
-            int scaledX = (int) (correctedX * scaleX); // 交换坐标
-            int scaledY = (int) (correctedY * scaleY); // 交换坐标并取反
-
-            // 输出调试信息
-            Log.d("Movement", "Original: (" + laserX + ", " + laserY + "), Corrected: (" + correctedX + ", " + correctedY + "), Scaled: (" + scaledX + ", " + scaledY + ")");
+            scaledX = (int) (correctedX * scaleX);
+            scaledY = (int) (correctedY * scaleY);
 
             // 显示校正后的光点
             Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);  // 显示原始光点
             Imgproc.circle(rgbaMat, new Point(scaledX, scaledY), 10, new Scalar(255, 0, 0), 3);  // 显示校正后的光点
-
-            // 处理闪烁和拖移
-            processLaserFlashing(scaledX, scaledY);
-
-            // 传送鼠标移动指令
-            Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
-            moveIntent.putExtra("x", scaledX);
-            moveIntent.putExtra("y", scaledY);
-            context.startService(moveIntent);
-
-            if (pointListener != null) {
-                pointListener.onPointDetected(scaledX, scaledY);
-            }
+            showMouse(scaledX, scaledY);
+            laserDetected = true; // 检测到光点，设置为true
         }
+
+        // 添加 Logcat 提示
+        if (laserDetected) {
+            Log.d("LaserDetection", "Laser point detected at: (" + scaledX + ", " + scaledY + ")");
+        } else {
+            Log.d("LaserDetection", "No laser point detected.");
+        }
+
+        // 将是否检测到光点的状态传递给 processLaserFlashing
+        processLaserFlashing(scaledX, scaledY, laserDetected);
+
 
         // 释放资源
         hsv.release();
@@ -338,6 +346,70 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         dilatedMask.release();
         hierarchy.release();
     }
+    private void showMouse(int scaledX, int scaledY){
+        // 传送鼠标移动指令
+        Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
+        moveIntent.putExtra("x", scaledX);
+        moveIntent.putExtra("y", scaledY);
+        context.startService(moveIntent);
+    }
+
+
+    // 修改后的 processLaserFlashing 方法，增加 laserDetected 参数
+    private void processLaserFlashing(int mappedX, int mappedY, boolean laserDetected) {
+        // 如果正在进行拖移操作，则不再捕获新的拖移动作
+        if (isDraggingInProgress) {
+            return;
+        }
+
+        long currentTime = System.currentTimeMillis();
+        Log.d("LaserFlashing", "Laser flash count: " + flashCount);
+
+        if (laserDetected) {
+            // 第一次检测到光点，将初始化计时窗口
+            if (flashCount == 0 || !wasLaserPreviouslyVisible) {
+                windowStartTime = currentTime;
+            }
+
+            // 如果光点从亮到暗再到亮，认为是一次闪烁
+            if (!wasLaserPreviouslyVisible) {
+                flashCount++;
+                Log.d("LaserFlashing", "Laser flash count: " + flashCount);
+            } else if (flashCount == 2 && !hasTriggeredClick) {
+                Log.d("LaserFlashing", "click");
+                triggerClick(mappedX, mappedY);
+                hasTriggeredClick = true;
+            } else if (flashCount >= 3) {
+                Log.d("LaserFlashing", "Adding point to array: " + mappedX + ", " + mappedY);
+                laserCoordinates.add(new int[]{mappedX, mappedY});
+
+                // 当坐标数超过 10 个时，启动拖移
+                if (laserCoordinates.size() >= 10) {
+                    startDragWithLaser();
+                }
+            }
+        } else if (!laserDetected) {
+            if (currentTime - windowStartTime >= 1000) {
+                resetFlashDetection();
+                laserCoordinates.clear(); // 重置坐标列表
+                isDraggingInProgress = false;
+            }
+        }
+
+        // 更新上一次的光点可见状态
+        wasLaserPreviouslyVisible = laserDetected;
+    }
+
+    // 重置闪烁检测逻辑
+    private void resetFlashDetection() {
+        flashCount = 0;
+        wasLaserPreviouslyVisible = false;
+        hasTriggeredClick = false;
+        windowStartTime = 0;
+    }
+
+
+
 
 
 
@@ -387,94 +459,38 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
 
 
-    private void processLaserFlashing(int mappedX, int mappedY) {
-        // 如果正在进行拖移操作，则不再捕获新的拖移动作
-        if (isDraggingInProgress) {
-            return;
-        }
-
-        // 将当前的激光笔坐标添加到列表中
-        if (mappedX>0 || mappedY>0) {
-            laserPoints.add(new Point(mappedX, mappedY));
-        }
 
 
-        // 当我们检测到足够的点（例如 10 个），就进行拖移
-        if (laserPoints.size() >= 10) {
-            // 将激光笔轨迹传递给 AccessibilityService
-            Intent intent = new Intent(context, MyAccessibilityService.class);
-            ArrayList<int[]> coordinates = new ArrayList<>();
+    // 重置闪烁检测逻辑
 
-            for (Point point : laserPoints) {
-                coordinates.add(new int[]{(int) point.x, (int) point.y});
-            }
+    private void startDragWithLaser() {
+        // 创建 Intent 传递给 MyAccessibilityService
+        Intent dragIntent = new Intent(context, MyAccessibilityService.class);
+        dragIntent.putExtra("action_type", "drag");
+        dragIntent.putExtra("coordinates", laserCoordinates);  // 这里的coordinates是ArrayList<int[]>类型
+        context.startService(dragIntent);
 
-            intent.putExtra("coordinates", coordinates);
-            context.startService(intent);  // 启动服务进行拖移
+        Log.d("LaserFlashing", "Starting drag with coordinates: " + laserCoordinates);
 
-            Log.d("OpenCVProcessor", "Starting drag with coordinates: " + coordinates.toString());
+        isDraggingInProgress = true;
 
-            // 清空坐标点列表并标记为拖移进行中
-            isDraggingInProgress = true;
-
-            // 使用runOnUiThread来保证Handler在主线程中运行
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                laserPoints.clear(); // 清空已经拖移的坐标
-                isDraggingInProgress = false; // 拖移完成，允许新的拖移
-            }, 1000); // 拖移持续时间（可根据需要调整）
-        }
-
-        // 更新最后的光点位置
-        lastLaserPoint = new Point(mappedX, mappedY);
-    }
-
-
-
-    private void handleLaserClick(int mappedX, int mappedY) {
-        // 判斷雷射點是否穩定
-        if (lastLaserPoint != null && getDistance(lastLaserPoint, new Point(mappedX, mappedY)) < 50) {
-            isLaserStationary = true;
-
-            // 檢測雷射閃爍
-            detectLaserFlashes();
-
-            // 只有當閃爍數量達到2次時才會觸發點擊
-            if (flashCount >= 2) {
-                triggerClick(mappedX, mappedY);
-                flashCount = 0;
-                resetFlashDetection();
-            }
-        } else {
-            isLaserStationary = false;
-            resetFlashDetection();
-        }
+        // 重置拖移状态
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            laserCoordinates.clear();
+            isDraggingInProgress = false;
+        }, 1000);
     }
 
 
 
 
-
-
-    private void detectLaserFlashes() {
-        long currentTime = System.currentTimeMillis();
-        if (isLaserStationary && currentTime - lastFlashTime >= FLASH_DELAY) {
-            flashCount++;
-            lastFlashTime = currentTime;
-        }
-    }
-
-    private void resetFlashDetection() {
-        isLaserStationary = false;
-        flashCount = 0;
-        lastFlashTime = 0;
-    }
 
     // 觸發點擊方法
     private void triggerClick(int x, int y) {
         Intent clickIntent = new Intent(context, MyAccessibilityService.class);
+        clickIntent.putExtra("action_type", "click");
         clickIntent.putExtra("x", x);
         clickIntent.putExtra("y", y);
-        clickIntent.putExtra("isFrameLocked", isFrameLocked);
         context.startService(clickIntent);
     }
 
@@ -544,3 +560,4 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         return frame; // 返回当前帧
     }
 }
+
