@@ -10,7 +10,6 @@ import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -140,6 +139,11 @@ public class FloatingCameraService extends Service {
         Button lockFrameButton = floatingButton.findViewById(R.id.lock_frame_button);
         Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
+        Button btnSetHSV = floatingButton.findViewById(R.id.btn_set_hsv);
+//        EditText editTextH = floatingButton.findViewById(R.id.H);
+//        EditText editTextS = floatingButton.findViewById(R.id.S);
+//        EditText editTextV = floatingButton.findViewById(R.id.V);
+//        Button submitbtn = floatingButton.findViewById(R.id.Submit);
 
         // 設定選單按鈕點擊監聽器
         menuButton.setOnClickListener(v -> {
@@ -147,11 +151,13 @@ public class FloatingCameraService extends Service {
                 whiteScreenButton.setVisibility(View.GONE);
                 lockFrameButton.setVisibility(View.GONE);
                 hsvButton.setVisibility(View.GONE); // 隱藏 HSV 按鈕
+                btnSetHSV.setVisibility(View.GONE);
                 exitButton.setVisibility(View.GONE);
             } else {
                 whiteScreenButton.setVisibility(View.VISIBLE);
                 lockFrameButton.setVisibility(View.VISIBLE);
                 hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
+                btnSetHSV.setVisibility(View.VISIBLE);
                 exitButton.setVisibility(View.VISIBLE);
             }
             isMenuExpanded = !isMenuExpanded;
@@ -211,29 +217,66 @@ public class FloatingCameraService extends Service {
         });
 
         // Set up touch listener to move the button
-        floatingButton.setOnTouchListener(new View.OnTouchListener() {
-            private int x, y;
-            private float xOffset, yOffset;
+//        floatingButton.setOnTouchListener(new View.OnTouchListener() {
+//            private int x, y;
+//            private float xOffset, yOffset;
+//
+//            @Override
+//            public boolean onTouch(View v, MotionEvent event) {
+//                switch (event.getAction()) {
+//                    case MotionEvent.ACTION_DOWN:
+//                        x = (int) event.getRawX();
+//                        y = (int) event.getRawY();
+//                        xOffset = event.getRawX() - buttonParams.x;
+//                        yOffset = event.getRawY() - buttonParams.y;
+//                        return true;
+//
+//                    case MotionEvent.ACTION_MOVE:
+//                        buttonParams.x = (int) (event.getRawX() - xOffset);
+//                        buttonParams.y = (int) (event.getRawY() - yOffset);
+//                        mWindowManager.updateViewLayout(floatingButton, buttonParams);
+//                        return true;
+//                }
+//                return false;
+//            }
+//        });
 
+        btnSetHSV.setOnClickListener(new View.OnClickListener() {
             @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        x = (int) event.getRawX();
-                        y = (int) event.getRawY();
-                        xOffset = event.getRawX() - buttonParams.x;
-                        yOffset = event.getRawY() - buttonParams.y;
-                        return true;
-
-                    case MotionEvent.ACTION_MOVE:
-                        buttonParams.x = (int) (event.getRawX() - xOffset);
-                        buttonParams.y = (int) (event.getRawY() - yOffset);
-                        mWindowManager.updateViewLayout(floatingButton, buttonParams);
-                        return true;
-                }
-                return false;
+            public void onClick(View v) {
+                Intent intent = new Intent(FloatingCameraService.this, HSVActivity.class);
+                startActivity(intent);
+                // 设置输入框为可见
+//                editTextH.setVisibility(View.VISIBLE);
+//                editTextS.setVisibility(View.VISIBLE);
+//                editTextV.setVisibility(View.VISIBLE);
+//                submitbtn.setVisibility(View.VISIBLE);
+//
+//
+//                try {
+//                    // 从输入框中获取值
+//                    float h = Float.parseFloat(editTextH.getText().toString());
+//                    float s = Float.parseFloat(editTextS.getText().toString());
+//                    float vValue = Float.parseFloat(editTextV.getText().toString());
+//
+//                    // 将值传递给 openCVProcessor.inputHSV()
+//                    openCVProcessor.inputHSV(h, s, vValue);
+//
+//                } catch (NumberFormatException e) {
+//                    // 如果用户输入不是数字，显示错误提示
+//                    Toast.makeText(getApplicationContext(), "Invalid HSV values", Toast.LENGTH_SHORT).show();
+//                }
             }
         });
+
+//        submitbtn.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                TextView textView = floatingButton.findViewById(R.id.TextView);
+//                textView.setText(editTextH.getText());
+//            }
+//        });
+
     }
 
     private void toggleWhiteScreen() {

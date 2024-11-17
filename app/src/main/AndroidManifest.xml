@@ -45,10 +45,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".HSVActivity" />
+
 
 
         <service android:name=".FloatingCameraService"
-            android:permission="android.permission.CAMERA"/>
+            android:permission="android.permission.CAMERA"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            />
 
         <service android:name=".MouseAccessibilityService"
             android:exported="true"
@@ -67,7 +72,9 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-<!--        <service android:name=".FloatingButtonService"-->
+
+
+        <!--        <service android:name=".FloatingButtonService"-->
 <!--            android:permission="android.permission.SYSTEM_ALERT_WINDOW"/>-->
 
     </application>

@@ -74,6 +74,12 @@ public class MyAccessibilityService extends AccessibilityService {
                 } else {
                     Log.e(TAG, "Invalid coordinates for drag");
                 }
+            } else if ("drag_single".equals(actionType)) {
+                int startX = intent.getIntExtra("startX", -1);
+                int startY = intent.getIntExtra("startY", -1);
+                int endX = intent.getIntExtra("endX", -1);
+                int endY = intent.getIntExtra("endY", -1);
+                performSingleDrag(startX, startY, endX, endY);
             }
         }
         return START_STICKY;
@@ -85,7 +91,6 @@ public class MyAccessibilityService extends AccessibilityService {
             return;
         }
 
-        // 检查所有点的坐标是否有效
         for (int[] point : coordinates) {
             if (point.length < 2 || point[0] < 0 || point[1] < 0) {
                 Log.e("GestureError", "Invalid drag coordinates: (" + point[0] + ", " + point[1] + ")");
@@ -94,47 +99,64 @@ public class MyAccessibilityService extends AccessibilityService {
         }
 
         Path path = new Path();
-        // 根据第一个点移动到初始位置
         int[] firstPoint = coordinates.get(0);
         path.moveTo(firstPoint[0], firstPoint[1]);
 
-        // 依次将所有点连接起来，生成完整路径
         for (int i = 1; i < coordinates.size(); i++) {
             int[] point = coordinates.get(i);
             path.lineTo(point[0], point[1]);
         }
 
-        GestureDescription.StrokeDescription strokeDescription = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 1000); // 根据轨迹拖移
-        }
+            GestureDescription.StrokeDescription strokeDescription = new GestureDescription.StrokeDescription(path, 0, 50);
+            GestureDescription gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
 
-        GestureDescription gestureDescription = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            boolean result = dispatchGesture(gestureDescription, new GestureResultCallback() {
+            dispatchGesture(gestureDescription, new GestureResultCallback() {
                 @Override
                 public void onCompleted(GestureDescription gestureDescription) {
                     super.onCompleted(gestureDescription);
-                    isDraggingInProgress = false;  // 拖移完成
-                    Log.d(TAG, "Drag performed successfully");
+                    Log.d(TAG, "Full drag performed successfully");
                 }
 
                 @Override
                 public void onCancelled(GestureDescription gestureDescription) {
                     super.onCancelled(gestureDescription);
-                    isDraggingInProgress = false;  // 拖移取消
-                    Log.d(TAG, "Drag cancelled");
+                    Log.d(TAG, "Full drag cancelled");
                 }
             }, null);
+        } else {
+            Log.d(TAG, "API level not supported for gestures");
+        }
+    }
 
-            if (!result) {
-                Log.d(TAG, "Drag dispatch failed");
-                isDraggingInProgress = false;
-            }
+    private void performSingleDrag(int startX, int startY, int endX, int endY) {
+        if (startX < 0 || startY < 0 || endX < 0 || endY < 0) {
+            Log.e("GestureError", "Invalid single drag coordinates");
+            return;
+        }
+
+        Path path = new Path();
+        path.moveTo(startX, startY);
+        path.lineTo(endX, endY);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // 使用较短的拖曳时间以更频繁更新光标
+            GestureDescription.StrokeDescription strokeDescription = new GestureDescription.StrokeDescription(path, 0, 5);
+            GestureDescription gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
+
+            dispatchGesture(gestureDescription, new GestureResultCallback() {
+                @Override
+                public void onCompleted(GestureDescription gestureDescription) {
+                    super.onCompleted(gestureDescription);
+                    Log.d(TAG, "Segment of drag performed successfully");
+                }
+
+                @Override
+                public void onCancelled(GestureDescription gestureDescription) {
+                    super.onCancelled(gestureDescription);
+                    Log.d(TAG, "Segment of drag cancelled");
+                }
+            }, null);
         } else {
             Log.d(TAG, "API level not supported for gestures");
         }

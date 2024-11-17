@@ -40,5 +40,50 @@
         android:text="Exit"
         android:visibility="gone" />
 
+    <Button
+        android:id="@+id/btn_set_hsv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="setting hsv"
+        android:visibility="gone" />
+
+<!--    <EditText-->
+<!--        android:id="@+id/H"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:textSize="24sp"-->
+<!--        android:hint="H"-->
+<!--        android:inputType="numberDecimal"-->
+<!--        android:visibility="gone"/>-->
+
+<!--    <EditText-->
+<!--        android:id="@+id/S"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:textSize="24sp"-->
+<!--        android:hint="S"-->
+<!--        android:inputType="numberDecimal"-->
+<!--        android:visibility="gone"/>-->
+
+<!--    <EditText-->
+<!--        android:id="@+id/V"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:textSize="24sp"-->
+<!--        android:hint="V"-->
+<!--        android:inputType="numberDecimal"-->
+<!--        android:visibility="gone"/>-->
+
+<!--    <Button-->
+<!--        android:id="@+id/Submit"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="Submit" />-->
+
+<!--    <TextView-->
+<!--        android:id="@+id/TextView"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="TextView" />-->
 
 </LinearLayout>
