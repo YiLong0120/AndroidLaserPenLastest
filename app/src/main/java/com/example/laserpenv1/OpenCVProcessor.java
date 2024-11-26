@@ -79,6 +79,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     boolean hasTriggeredClick = false;
     private ArrayList<int[]> laserCoordinates = new ArrayList<>();
     float H=70, S=90, V=245;
+    private int[] initialCoordinate = null;
 
 
 
@@ -391,35 +392,60 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     // 修改后的 processLaserFlashing 方法，增加 laserDetected 参数
     private void processLaserFlashing(int mappedX, int mappedY, boolean laserDetected) {
         long currentTime = System.currentTimeMillis();
-        Log.d("LaserFlashing", "Laser flash count: " + flashCount);
 
+        // 初始化
         if (laserDetected) {
-            // 初始化计时窗口
             if (flashCount == 0 || !wasLaserPreviouslyVisible) {
                 windowStartTime = currentTime;
+                initialCoordinate = new int[]{mappedX, mappedY}; // 記錄起點
             }
 
-            // 如果光点从亮到暗再到亮，认为是一次闪烁
+            // 如果光點從暗到亮，視為一次閃爍
             if (!wasLaserPreviouslyVisible) {
                 flashCount++;
-                Log.d("LaserFlashing", "Laser flash count: " + flashCount);
-            } else if (flashCount == 2 && !hasTriggeredClick) {
-                Log.d("LaserFlashing", "click");
                 triggerClick(mappedX, mappedY);
-                hasTriggeredClick = true;
-            } else if (flashCount >= 3) {
-                // 如果闪烁次数 >= 3，持续收集光点的坐标
-                laserCoordinates.add(new int[]{mappedX, mappedY});
+                Log.d("LaserFlashing", "Laser flash count: " + flashCount);
+//            } else if (flashCount >= 3) {
+//                // 如果闪烁次数 >= 3，持续收集光点的坐标
+//                laserCoordinates.add(new int[]{mappedX, mappedY});
+//
+//                // 当列表中有 2 个或更多点时，将相邻的两个点进行拖曳
+//                if (laserCoordinates.size() >= 2) {
+//                    int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
+//                    int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
+//                    startDragWithLaser(start[0], start[1], end[0], end[1]);
+//                }
+            }
 
-                // 当列表中有 2 个或更多点时，将相邻的两个点进行拖曳
-                if (laserCoordinates.size() >= 2) {
-                    int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
-                    int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
-                    startDragWithLaser(start[0], start[1], end[0], end[1]);
+            // 收集最新的光點座標
+            laserCoordinates.add(new int[]{mappedX, mappedY});
+
+            // 如果超過一秒，計算距離並判斷是否進行拖曳
+            if (currentTime - windowStartTime >= 1000) {
+                if (laserCoordinates.size() > 1) {
+                    // 記錄終點
+                    int[] finalCoordinate = new int[]{mappedX, mappedY};
+
+                    // 計算移動距離
+                    double totalDistance = calculateTotalDistance(laserCoordinates);
+
+                    // 判斷距離是否超過閾值（例如 50 像素）
+                    if (totalDistance >= 50) {
+                        Log.d("LaserFlashing", "Drag initiated with distance: " + totalDistance);
+                        startDragWithLaser(
+                                initialCoordinate[0], initialCoordinate[1],
+                                finalCoordinate[0], finalCoordinate[1]
+                        );
+                    }
                 }
+
+                // 重置偵測
+                resetFlashDetection();
+                laserCoordinates.clear();
+                isDraggingInProgress = false;
             }
         } else {
-            // 如果光点不可见或超时，结束拖曳并重置
+            // 如果光點不可見或超時，重置
             if (currentTime - windowStartTime >= 1000) {
                 resetFlashDetection();
                 stopDragging();  // 停止拖曳操作
@@ -428,9 +454,26 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             }
         }
 
-        // 更新上一次光点的可见状态
+        // 更新上一次光點的可見狀態
         wasLaserPreviouslyVisible = laserDetected;
     }
+    // 計算總移動距離
+    private double calculateTotalDistance(List<int[]> coordinates) {
+        double totalDistance = 0.0;
+
+        for (int i = 1; i < coordinates.size(); i++) {
+            int[] previous = coordinates.get(i - 1);
+            int[] current = coordinates.get(i);
+            double distance = Math.sqrt(
+                    Math.pow(current[0] - previous[0], 2) +
+                            Math.pow(current[1] - previous[1], 2)
+            );
+            totalDistance += distance;
+        }
+
+        return totalDistance;
+    }
+
 
 
     // 停止拖曳操作
