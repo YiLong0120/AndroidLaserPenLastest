@@ -1,4 +1,5 @@
 /*
+色相、飽和度、明度
 Scalar lowerHSV = new Scalar(55, 75, 235); // 下限
 Scalar upperHSV = new Scalar(75, 95, 255); // 上限
  */
@@ -136,17 +137,14 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                 Core.rotate(frame, frame, Core.ROTATE_90_CLOCKWISE);
                 break;
         }
-
+        Mat grayMat = new Mat();
+        Imgproc.cvtColor(frame, grayMat, Imgproc.COLOR_RGBA2GRAY);
         // 继续图像处理流程
         if (!isFrameLocked) {
-            // 转换为灰阶
-            Mat grayMat = new Mat();
-            Imgproc.cvtColor(frame, grayMat, Imgproc.COLOR_RGBA2GRAY);
-
             // 背景减除与二值化处理
             detectProjectionScreen(frame, grayMat);
         } else {
-            detectLaserPoints(frame, H, S, V);
+            detectLaserPoints(frame, grayMat);
         }
 
         // 在返回前调整旋转后的 `rotatedFrame` 到原始尺寸
@@ -238,6 +236,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
 
 
+
     private void logCorners(String label, Point[] corners) {
         Log.d("ProjectionCoordinates", label + ":");
         for (Point corner : corners) {
@@ -276,62 +275,89 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         return screenBoundingRect;
     }
 
-    private void detectLaserPoints(Mat rgbaMat, float H, float S, float V) {
-        Mat hsv = new Mat();
-        Imgproc.cvtColor(rgbaMat, hsv, Imgproc.COLOR_RGB2HSV);
+    private void detectLaserPoints(Mat rgbaMat, Mat grayMat) {
+        // 高斯模糊，减少噪声
+        Imgproc.GaussianBlur(grayMat, grayMat, new Size(5, 5), 0);
 
-//        Scalar lowerGreen = new Scalar(70, 85, 235); // 下限
-//        Scalar upperGreen = new Scalar(75, 95, 255); // 上限
-        Scalar lowerGreen = new Scalar(H-5, S-5, V-5); // 下限
-        Scalar upperGreen = new Scalar(H+5, S+5, V+5); // 上限
-        Log.d(TAG, "detectLaserPoints: " + lowerGreen + upperGreen);
+        // 自适应二值化
+        Mat binaryMat = new Mat();
+        Imgproc.adaptiveThreshold(
+                grayMat, binaryMat, 255,
+                Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+                Imgproc.THRESH_BINARY,
+                11, 2
+        );
 
+        // 转换到 HSV 空间
+        Mat hsvMat = new Mat();
+        Imgproc.cvtColor(rgbaMat, hsvMat, Imgproc.COLOR_RGB2HSV);
 
+        // 定义绿色的 HSV 范围
+        Scalar lowerGreen = new Scalar(60, 50, 200); // 宽松的下限
+        Scalar upperGreen = new Scalar(100, 255, 255); // 宽松的上限
         Mat greenMask = new Mat();
-        Core.inRange(hsv, lowerGreen, upperGreen, greenMask);
+        Core.inRange(hsvMat, lowerGreen, upperGreen, greenMask);
 
+        // 结合二值化和 HSV 掩膜
+        Mat combinedMask = new Mat();
+        Core.bitwise_and(binaryMat, greenMask, combinedMask);
+
+        // 膨胀操作以突出光点
         Mat dilatedMask = new Mat();
-        Imgproc.dilate(greenMask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(15, 15)));
+        Imgproc.dilate(combinedMask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(15, 15)));
 
+        // 查找轮廓
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
         Imgproc.findContours(dilatedMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
+        // 获取最大轮廓的边界框
         Rect boundingRect = null;
+        double minArea = 50.0; // 最小轮廓面积阈值
         for (MatOfPoint contour : contours) {
             Rect rect = Imgproc.boundingRect(contour);
-            if (boundingRect == null || rect.area() > boundingRect.area()) {
+            if (rect.area() >= minArea && (boundingRect == null || rect.area() > boundingRect.area())) {
                 boundingRect = rect;
             }
         }
 
-        boolean laserDetected = false; // 标记是否检测到激光笔光点
+        boolean laserDetected = false; // 是否检测到激光光点的标志
         int scaledX = 0, scaledY = 0;
 
         if (boundingRect != null && perspectiveTransform != null) {
-            // 激光笔光点的原始坐标
+            // 激光光点的原始坐标
             int laserX = boundingRect.x + boundingRect.width / 2;
             int laserY = boundingRect.y + boundingRect.height / 2;
 
-            // 应用透视变换来校正光点坐标
+            // 应用透视变换
             MatOfPoint2f originalPoint = new MatOfPoint2f(new Point(laserX, laserY));
             MatOfPoint2f transformedPoint = new MatOfPoint2f();
             Core.perspectiveTransform(originalPoint, transformedPoint, perspectiveTransform);
 
-            // 提取校正后的光点坐标
+            // 获取变换后的坐标
             Point correctedPoint = transformedPoint.toArray()[0];
             int correctedX = (int) correctedPoint.x;
             int correctedY = (int) correctedPoint.y;
 
-            // 应用比例因子进行缩放
+            // 按比例缩放坐标
             scaledX = (int) (correctedX * scaleX);
             scaledY = (int) (correctedY * scaleY);
 
-            // 显示校正后的光点
-            Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);  // 显示原始光点
-            Imgproc.circle(rgbaMat, new Point(scaledX, scaledY), 10, new Scalar(255, 0, 0), 3);  // 显示校正后的光点
-            showMouse(scaledX, scaledY);
-            laserDetected = true; // 检测到光点，设置为true
+            // 限制坐标范围，避免噪声导致的异常
+            if (scaledX >= 0 && scaledX < screenWidth && scaledY >= 0 && scaledY < screenHeight) {
+                laserDetected = true;
+            }
+        }
+
+        // 平滑坐标并绘制光点
+        if (laserDetected) {
+            missedFrames = 0; // 重置丢帧计数器
+            lastLaserDetected = true;
+
+            // 平滑处理后的坐标
+            Point smoothedPoint = smoothPoint(new Point(scaledX, scaledY));
+            Imgproc.circle(rgbaMat, smoothedPoint, 10, new Scalar(255, 0, 0), 3);
+            showMouse((int) smoothedPoint.x, (int) smoothedPoint.y);
         }
 
         // 添加 Logcat 提示
@@ -341,16 +367,18 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             Log.d("LaserDetection", "No laser point detected.");
         }
 
-        // 将是否检测到光点的状态传递给 processLaserFlashing
+        // 将检测状态传递给其他方法
         processLaserFlashing(scaledX, scaledY, laserDetected);
 
-
         // 释放资源
-        hsv.release();
+        binaryMat.release();
+        hsvMat.release();
         greenMask.release();
+        combinedMask.release();
         dilatedMask.release();
         hierarchy.release();
     }
+
     private void showMouse(int scaledX, int scaledY){
         // 传送鼠标移动指令
         Intent moveIntent = new Intent(context, MouseAccessibilityService.class);
@@ -545,7 +573,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
         // 定义HSV范围
         Scalar lowerHSV = new Scalar(55, 75, 235); // 下限
-        Scalar upperHSV = new Scalar(75, 95, 255); // 上限
+        Scalar upperHSV = new Scalar(90, 100, 255); // 上限
 
         Mat mask = new Mat();
         Core.inRange(hsvMat, lowerHSV, upperHSV, mask);
@@ -599,6 +627,26 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Log.d("OpenCVProcessor", "Received HSV Values: H=" + h + ", S=" + s + ", V=" + v);
 
     }
+    private boolean lastLaserDetected = false;
+    private int missedFrames = 0;
+    private final int MAX_MISSED_FRAMES = 3; // 允许的最大丢帧数
 
+    private final List<Point> pointHistory = new ArrayList<>();
+    private final int MAX_HISTORY_SIZE = 5; // 平滑历史坐标的最大数量
+
+    // 平滑坐标的方法
+    private Point smoothPoint(Point newPoint) {
+        pointHistory.add(newPoint);
+        if (pointHistory.size() > MAX_HISTORY_SIZE) {
+            pointHistory.remove(0);
+        }
+
+        double sumX = 0, sumY = 0;
+        for (Point point : pointHistory) {
+            sumX += point.x;
+            sumY += point.y;
+        }
+
+        return new Point(sumX / pointHistory.size(), sumY / pointHistory.size());
+    }
 }
-
