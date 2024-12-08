@@ -32,7 +32,11 @@ import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 
 public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListener2 {
 
@@ -79,7 +83,15 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     boolean hasTriggeredClick = false;
     private ArrayList<int[]> laserCoordinates = new ArrayList<>();
     float H=70, S=90, V=245;
-    private int[] initialCoordinate = null;
+    private static final int HSV_SAMPLE_SIZE = 50; // HSV采样的最大数量
+    private final Queue<double[]> hsvSamples = new LinkedList<>(); // 存储最近的HSV值
+    // 用于记录光点“亮”和“暗”的时间
+    private long brightnessStartTime = 0;
+    private long darknessStartTime = 0;
+
+    // 用于判断光点是否持续“亮”达到指定时间
+    private boolean isBrightEnough = false;
+    private int[] lastClickPoint = null;
 
 
 
@@ -158,13 +170,23 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
 
     // 偵測投影邊框的函數
+    // 偵測投影邊框的函數
     private void detectProjectionScreen(Mat rgbaMat, Mat grayMat) {
         Mat binaryMat = new Mat();
-        Imgproc.threshold(grayMat, binaryMat, 50, 255, Imgproc.THRESH_BINARY);
+        // 对图像进行高斯模糊，减少噪声
+        Imgproc.GaussianBlur(grayMat, grayMat, new Size(5, 5), 0);
+
+        // 调整阈值，适应白色区域
+        Imgproc.threshold(grayMat, binaryMat, 150, 255, Imgproc.THRESH_BINARY);
+
+        // 使用Canny边缘检测增强边缘特征
+        Mat edges = new Mat();
+        Imgproc.Canny(binaryMat, edges, 100, 200);
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
-        Imgproc.findContours(binaryMat, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        // 查找轮廓
+        Imgproc.findContours(edges, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
         if (contours.isEmpty()) {
             // 如果当前没有找到边框，继续使用保存的边框
@@ -204,8 +226,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             savedCorners[2] = temp;
             logCorners("Detected Corners", savedCorners); // 添加这行
 
-
-
             // 定义手机屏幕的四个角
             Point[] dstCorners = new Point[4];
             dstCorners[0] = new Point(0, 0);                        // 左上角
@@ -232,6 +252,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         hierarchy.release();
         contour2f.release();
         approxCurve.release();
+        edges.release();
     }
 
 
@@ -294,8 +315,8 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Imgproc.cvtColor(rgbaMat, hsvMat, Imgproc.COLOR_RGB2HSV);
 
         // 定义绿色的 HSV 范围
-        Scalar lowerGreen = new Scalar(60, 50, 200); // 宽松的下限
-        Scalar upperGreen = new Scalar(100, 255, 255); // 宽松的上限
+        Scalar lowerGreen = new Scalar(70, 80, 240);
+        Scalar upperGreen = new Scalar(90, 100, 255);
         Mat greenMask = new Mat();
         Core.inRange(hsvMat, lowerGreen, upperGreen, greenMask);
 
@@ -392,88 +413,81 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     // 修改后的 processLaserFlashing 方法，增加 laserDetected 参数
     private void processLaserFlashing(int mappedX, int mappedY, boolean laserDetected) {
         long currentTime = System.currentTimeMillis();
+        Log.d("LaserFlashing", "Laser flash count: " + flashCount);
 
-        // 初始化
+        // 定义参数
+        long minBrightnessDuration = 100; // 光点“亮”的最短持续时间（单位：毫秒）
+        long maxDarknessDuration = 200;  // 光点“暗”的最大持续时间（单位：毫秒）
+        long clickThresholdDistance = 50; // 点击的最大移动距离（单位：像素）
+        long dragThresholdDistance = 50; // 拖曳的距离阈值（单位：像素）
+
+        // 记录上一次的光点坐标
+
+
+        // 光点检测
         if (laserDetected) {
-            if (flashCount == 0 || !wasLaserPreviouslyVisible) {
-                windowStartTime = currentTime;
-                initialCoordinate = new int[]{mappedX, mappedY}; // 記錄起點
-            }
-
-            // 如果光點從暗到亮，視為一次閃爍
+            // 如果是从暗到亮，记录亮的开始时间
             if (!wasLaserPreviouslyVisible) {
-                flashCount++;
-                triggerClick(mappedX, mappedY);
-                Log.d("LaserFlashing", "Laser flash count: " + flashCount);
-//            } else if (flashCount >= 3) {
-//                // 如果闪烁次数 >= 3，持续收集光点的坐标
-//                laserCoordinates.add(new int[]{mappedX, mappedY});
-//
-//                // 当列表中有 2 个或更多点时，将相邻的两个点进行拖曳
-//                if (laserCoordinates.size() >= 2) {
-//                    int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
-//                    int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
-//                    startDragWithLaser(start[0], start[1], end[0], end[1]);
-//                }
+                brightnessStartTime = currentTime;
+                lastClickPoint = new int[]{mappedX, mappedY}; // 初始化点击坐标
             }
 
-            // 收集最新的光點座標
-            laserCoordinates.add(new int[]{mappedX, mappedY});
+            Log.d("LaserFlashing", "Time since bright start: " + (currentTime - brightnessStartTime));
 
-            // 如果超過一秒，計算距離並判斷是否進行拖曳
-            if (currentTime - windowStartTime >= 1000) {
-                if (laserCoordinates.size() > 1) {
-                    // 記錄終點
-                    int[] finalCoordinate = new int[]{mappedX, mappedY};
-
-                    // 計算移動距離
-                    double totalDistance = calculateTotalDistance(laserCoordinates);
-
-                    // 判斷距離是否超過閾值（例如 50 像素）
-                    if (totalDistance >= 50) {
-                        Log.d("LaserFlashing", "Drag initiated with distance: " + totalDistance);
-                        startDragWithLaser(
-                                initialCoordinate[0], initialCoordinate[1],
-                                finalCoordinate[0], finalCoordinate[1]
-                        );
+            // 检测“亮”的时间是否超过指定时长
+            if (currentTime - brightnessStartTime >= minBrightnessDuration) {
+                // 判断光点是否稳定在一个位置
+                if (lastClickPoint != null) {
+                    double clickDistance = calculateDistance(lastClickPoint[0], lastClickPoint[1], mappedX, mappedY);
+                    if (clickDistance <= clickThresholdDistance) {
+                        // 光点稳定 -> 触发点击
+                        triggerClick(mappedX, mappedY);
+                        Log.d("LaserFlashing", "Click triggered at: (" + mappedX + ", " + mappedY + ")");
+                    } else {
+                        Log.d("LaserFlashing", "Click canceled due to movement.");
                     }
                 }
-
-                // 重置偵測
-                resetFlashDetection();
-                laserCoordinates.clear();
-                isDraggingInProgress = false;
             }
+
+            laserCoordinates.add(new int[]{mappedX, mappedY});
+            if (laserCoordinates.size() >= 2) {
+                int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
+                int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
+                double dragDistance = calculateDistance(start[0], start[1], end[0], end[1]);
+                Log.d("check", String.valueOf(dragDistance));
+                if (dragDistance > dragThresholdDistance) {
+                    Log.d("dragDistance", "dragDistance" + dragDistance);
+                    startDragWithLaser(start[0], start[1], end[0], end[1]);
+                }
+            }
+
         } else {
-            // 如果光點不可見或超時，重置
-            if (currentTime - windowStartTime >= 1000) {
+            // 如果从亮转暗，记录暗的开始时间
+            if (wasLaserPreviouslyVisible) {
+                darknessStartTime = currentTime;
+            }
+
+            // 如果暗的时间没有超出限制，重置亮的检测状态
+            if (currentTime - darknessStartTime <= maxDarknessDuration) {
+                isBrightEnough = false;
+            } else {
+                // 暗的时间超出限制，重置闪烁计数
                 resetFlashDetection();
-                stopDragging();  // 停止拖曳操作
+                stopDragging(); // 停止拖曳操作
                 laserCoordinates.clear();
                 isDraggingInProgress = false;
             }
         }
 
-        // 更新上一次光點的可見狀態
+        // 更新上一次光点的可见状态
         wasLaserPreviouslyVisible = laserDetected;
     }
-    // 計算總移動距離
-    private double calculateTotalDistance(List<int[]> coordinates) {
-        double totalDistance = 0.0;
 
-        for (int i = 1; i < coordinates.size(); i++) {
-            int[] previous = coordinates.get(i - 1);
-            int[] current = coordinates.get(i);
-            double distance = Math.sqrt(
-                    Math.pow(current[0] - previous[0], 2) +
-                            Math.pow(current[1] - previous[1], 2)
-            );
-            totalDistance += distance;
-        }
 
-        return totalDistance;
+
+    private double calculateDistance(int x1, int y1, int x2, int y2) {
+        return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
     }
-
 
 
     // 停止拖曳操作
@@ -642,8 +656,21 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
             // 获取HSV值
             double[] hsvValues = hsvMat.get(laserY, laserX);
-            Log.d(TAG, "Laser Point Detected: " + laserX + ", " + laserY + " - HSV: " + Arrays.toString(hsvValues));
+            if (hsvValues != null && hsvValues.length == 3) {
+                Log.d(TAG, "Laser Point Detected: " + laserX + ", " + laserY + " - HSV: " + Arrays.toString(hsvValues));
 
+                // 将当前HSV值添加到队列
+                if (hsvSamples.size() >= HSV_SAMPLE_SIZE) {
+                    hsvSamples.poll(); // 移除最旧的值
+                }
+                hsvSamples.add(hsvValues);
+
+                // 计算每个通道的最常出现值
+                int[] mostFrequentHSV = calculateMostFrequentHSV(hsvSamples);
+                Log.d(TAG, "Most Frequent HSV: H=" + mostFrequentHSV[0] + ", S=" + mostFrequentHSV[1] + ", V=" + mostFrequentHSV[2]);
+            }
+
+            // 绘制光点
             Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
 
             if (pointListener != null) {
@@ -653,10 +680,42 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             Log.d(TAG, "No laser point detected");
         }
 
+        // 释放资源
         hsvMat.release();
         mask.release();
         dilatedMask.release();
         hierarchy.release();
+    }
+
+    // 计算HSV值中最常出现的H, S, V
+    private int[] calculateMostFrequentHSV(Queue<double[]> hsvSamples) {
+        Map<Integer, Integer> hFrequency = new HashMap<>();
+        Map<Integer, Integer> sFrequency = new HashMap<>();
+        Map<Integer, Integer> vFrequency = new HashMap<>();
+
+        for (double[] hsv : hsvSamples) {
+            int h = (int) hsv[0];
+            int s = (int) hsv[1];
+            int v = (int) hsv[2];
+
+            hFrequency.put(h, hFrequency.getOrDefault(h, 0) + 1);
+            sFrequency.put(s, sFrequency.getOrDefault(s, 0) + 1);
+            vFrequency.put(v, vFrequency.getOrDefault(v, 0) + 1);
+        }
+
+        return new int[]{
+                getMostFrequentValue(hFrequency),
+                getMostFrequentValue(sFrequency),
+                getMostFrequentValue(vFrequency)
+        };
+    }
+
+    // 获取Map中频率最高的值
+    private int getMostFrequentValue(Map<Integer, Integer> frequencyMap) {
+        return frequencyMap.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(0);
     }
 
     public Mat getCurrentFrame() {
@@ -693,3 +752,71 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         return new Point(sumX / pointHistory.size(), sumY / pointHistory.size());
     }
 }
+
+//    private void processLaserFlashing(int mappedX, int mappedY, boolean laserDetected) {
+//        long currentTime = System.currentTimeMillis();
+//
+//        // 初始化
+//        if (laserDetected) {
+//            if (flashCount == 0 || !wasLaserPreviouslyVisible) {
+//                windowStartTime = currentTime;
+//                initialCoordinate = new int[]{mappedX, mappedY}; // 記錄起點
+//            }
+//
+//            // 如果光點從暗到亮，視為一次閃爍
+//            if (!wasLaserPreviouslyVisible) {
+//                flashCount++;
+//                triggerClick(mappedX, mappedY);
+//                Log.d("LaserFlashing", "Laser flash count: " + flashCount);
+////            } else if (flashCount >= 3) {
+////                // 如果闪烁次数 >= 3，持续收集光点的坐标
+////                laserCoordinates.add(new int[]{mappedX, mappedY});
+////
+////                // 当列表中有 2 个或更多点时，将相邻的两个点进行拖曳
+////                if (laserCoordinates.size() >= 2) {
+////                    int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
+////                    int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
+////                    startDragWithLaser(start[0], start[1], end[0], end[1]);
+////                }
+//            }
+//
+//            // 收集最新的光點座標
+//            laserCoordinates.add(new int[]{mappedX, mappedY});
+//
+//            // 如果超過一秒，計算距離並判斷是否進行拖曳
+//            if (currentTime - windowStartTime >= 1000) {
+//                if (laserCoordinates.size() > 1) {
+//                    // 記錄終點
+//                    int[] finalCoordinate = new int[]{mappedX, mappedY};
+//
+//                    // 計算移動距離
+//                    double totalDistance = calculateTotalDistance(laserCoordinates);
+//
+//                    // 判斷距離是否超過閾值（例如 50 像素）
+//                    if (totalDistance >= 50) {
+//                        Log.d("LaserFlashing", "Drag initiated with distance: " + totalDistance);
+//                        startDragWithLaser(
+//                                initialCoordinate[0], initialCoordinate[1],
+//                                finalCoordinate[0], finalCoordinate[1]
+//                        );
+//                    }
+//                }
+//
+//                // 重置偵測
+//                resetFlashDetection();
+//                laserCoordinates.clear();
+//                isDraggingInProgress = false;
+//            }
+//        } else {
+//            // 如果光點不可見或超時，重置
+//            if (currentTime - windowStartTime >= 1000) {
+//                resetFlashDetection();
+//                stopDragging();  // 停止拖曳操作
+//                laserCoordinates.clear();
+//                isDraggingInProgress = false;
+//            }
+//        }
+//
+//        // 更新上一次光點的可見狀態
+//        wasLaserPreviouslyVisible = laserDetected;
+//    }

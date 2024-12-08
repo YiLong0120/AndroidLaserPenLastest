@@ -46,6 +46,23 @@
         android:layout_height="wrap_content"
         android:text="setting hsv"
         android:visibility="gone" />
+    <Button
+        android:id="@+id/BackBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="BackBtn" />
+
+    <Button
+        android:id="@+id/HomeBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="HomeBtn" />
+
+    <Button
+        android:id="@+id/RecentBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="RecentBtn" />
 
 <!--    <EditText-->
 <!--        android:id="@+id/H"-->

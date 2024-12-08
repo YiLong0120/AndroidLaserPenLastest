@@ -80,6 +80,12 @@ public class MyAccessibilityService extends AccessibilityService {
                 int endX = intent.getIntExtra("endX", -1);
                 int endY = intent.getIntExtra("endY", -1);
                 performSingleDrag(startX, startY, endX, endY);
+            } else if ("pressBack".equals(actionType)) {
+                performGlobalBack(1);
+            } else if ("pressHome".equals(actionType)) {
+                performGlobalBack(2);
+            } else if ("pressRecent".equals(actionType)) {
+                performGlobalBack(3);
             }
         }
         return START_STICKY;
@@ -218,5 +224,11 @@ public class MyAccessibilityService extends AccessibilityService {
         DisplayMetrics metrics = new DisplayMetrics();
         wm.getDefaultDisplay().getMetrics(metrics);
         return metrics.heightPixels;
+    }
+    public void performGlobalBack(int input) {
+        performGlobalAction(input);
+        performGlobalAction(input);
+        performGlobalAction(input);
+        Log.d(TAG, "performGlobalBack: " + input);
     }
 }

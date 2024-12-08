@@ -1,6 +1,7 @@
 package com.example.laserpenv1;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.net.Uri;
@@ -34,6 +35,8 @@ public class FloatingCameraService extends Service {
     private View whiteScreenOverlay;
     private boolean isDetectingHSV = false; // 新增状态标记
     private Scalar detectedHSVValue; // 存储检测到的HSV值
+    private Context context;
+
 
     @Override
     public void onCreate() {
@@ -140,11 +143,19 @@ public class FloatingCameraService extends Service {
         Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
         Button btnSetHSV = floatingButton.findViewById(R.id.btn_set_hsv);
+
+        
+        Button BackBtn = floatingButton.findViewById(R.id.BackBtn);
+        Button HomeBtn = floatingButton.findViewById(R.id.HomeBtn);
+        Button RecentBtn = floatingButton.findViewById(R.id.RecentBtn);
+
 //        EditText editTextH = floatingButton.findViewById(R.id.H);
 //        EditText editTextS = floatingButton.findViewById(R.id.S);
 //        EditText editTextV = floatingButton.findViewById(R.id.V);
 //        Button submitbtn = floatingButton.findViewById(R.id.Submit);
-
+        BackBtn.setOnClickListener(v -> pressBackButton());
+        HomeBtn.setOnClickListener(v -> pressHomeButton());
+        RecentBtn.setOnClickListener(v -> pressRecentAppsButton());
         // 設定選單按鈕點擊監聽器
         menuButton.setOnClickListener(v -> {
             if (isMenuExpanded) {
@@ -334,4 +345,28 @@ public class FloatingCameraService extends Service {
         }
         super.onDestroy();
     }
+
+    MyAccessibilityService myService = new  MyAccessibilityService();
+    // 返回鍵功能
+    public void pressBackButton() {
+        Intent intent = new Intent(FloatingCameraService.this, MyAccessibilityService.class);
+        intent.putExtra("action_type", "pressBack");
+        startService(intent);
+    }
+
+
+    // 回首頁鍵功能
+    public void pressHomeButton() {
+        Intent intent = new Intent(FloatingCameraService.this, MyAccessibilityService.class);
+        intent.putExtra("action_type", "pressHome");
+        startService(intent);
+    }
+
+    // 清單鍵功能 (近期應用)
+    public void pressRecentAppsButton() {
+        Intent intent = new Intent(FloatingCameraService.this, MyAccessibilityService.class);
+        intent.putExtra("action_type", "pressRecent");
+        startService(intent);
+    }
+
 }
