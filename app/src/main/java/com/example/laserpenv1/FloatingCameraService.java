@@ -31,11 +31,10 @@ public class FloatingCameraService extends Service {
     private JavaCameraView mOpenCvCameraView;
     private OpenCVProcessor openCVProcessor;
     private boolean isMenuExpanded = false;
-    private boolean isWhiteScreen = false;
-    private View whiteScreenOverlay;
     private boolean isDetectingHSV = false; // 新增状态标记
     private Scalar detectedHSVValue; // 存储检测到的HSV值
     private Context context;
+
 
 
     @Override
@@ -129,46 +128,82 @@ public class FloatingCameraService extends Service {
                 PixelFormat.TRANSLUCENT);
 
         // 將浮動按鈕放置在左上角
-        buttonParams.gravity = Gravity.TOP | Gravity.START;
-        buttonParams.x = 10; // Offset from the left
-        buttonParams.y = 10; // Offset from the top
+        buttonParams.gravity = Gravity.TOP | Gravity.LEFT;
 
         // 將浮動按鈕新增至視窗管理器
         mWindowManager.addView(floatingButton, buttonParams);
 
+
+
+        View backButton = LayoutInflater.from(this).inflate(R.layout.floating_button_back, null);
+
+        // 設定浮動按鈕佈局參數
+        WindowManager.LayoutParams backButtonParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                        WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+
+        // 將浮動按鈕放置在左上角
+        backButtonParams.gravity = Gravity.BOTTOM;
+
+        // 將浮動按鈕新增至視窗管理器
+        mWindowManager.addView(backButton, backButtonParams);
+
+
+        View switchButton = LayoutInflater.from(this).inflate(R.layout.floating_button_switch, null);
+
+        // 設定浮動按鈕佈局參數
+        WindowManager.LayoutParams switchButtonParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                        WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+
+        // 將浮動按鈕放置在左上角
+        switchButtonParams.gravity = Gravity.TOP | Gravity.RIGHT;
+
+        // 將浮動按鈕新增至視窗管理器
+        mWindowManager.addView(switchButton, switchButtonParams);
+
         // 設定按鈕點擊事件
         Button menuButton = floatingButton.findViewById(R.id.floating_button);
-        Button whiteScreenButton = floatingButton.findViewById(R.id.white_screen_button);
         Button lockFrameButton = floatingButton.findViewById(R.id.lock_frame_button);
         Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
-        Button btnSetHSV = floatingButton.findViewById(R.id.btn_set_hsv);
+//        Button btnSetHSV = floatingButton.findViewById(R.id.btn_set_hsv);
 
-        
-        Button BackBtn = floatingButton.findViewById(R.id.BackBtn);
-        Button HomeBtn = floatingButton.findViewById(R.id.HomeBtn);
-        Button RecentBtn = floatingButton.findViewById(R.id.RecentBtn);
+        Button BackBtn = backButton.findViewById(R.id.BackBtn);
+
+        Button SwitchDrag = switchButton.findViewById(R.id.SwitchDrag);
+
 
 //        EditText editTextH = floatingButton.findViewById(R.id.H);
 //        EditText editTextS = floatingButton.findViewById(R.id.S);
 //        EditText editTextV = floatingButton.findViewById(R.id.V);
 //        Button submitbtn = floatingButton.findViewById(R.id.Submit);
-        BackBtn.setOnClickListener(v -> pressBackButton());
-        HomeBtn.setOnClickListener(v -> pressHomeButton());
-        RecentBtn.setOnClickListener(v -> pressRecentAppsButton());
+        BackBtn.setOnClickListener(v -> pressKeyButton());
+        SwitchDrag.setOnClickListener(v -> openCVProcessor.onButtonClicked());
+
+
+
         // 設定選單按鈕點擊監聽器
         menuButton.setOnClickListener(v -> {
             if (isMenuExpanded) {
-                whiteScreenButton.setVisibility(View.GONE);
                 lockFrameButton.setVisibility(View.GONE);
                 hsvButton.setVisibility(View.GONE); // 隱藏 HSV 按鈕
-                btnSetHSV.setVisibility(View.GONE);
+//                btnSetHSV.setVisibility(View.GONE);
                 exitButton.setVisibility(View.GONE);
             } else {
-                whiteScreenButton.setVisibility(View.VISIBLE);
                 lockFrameButton.setVisibility(View.VISIBLE);
                 hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
-                btnSetHSV.setVisibility(View.VISIBLE);
+//                btnSetHSV.setVisibility(View.VISIBLE);
                 exitButton.setVisibility(View.VISIBLE);
             }
             isMenuExpanded = !isMenuExpanded;
@@ -216,11 +251,6 @@ public class FloatingCameraService extends Service {
             }
         });
 
-
-
-        // Set the white screen button click listener
-        whiteScreenButton.setOnClickListener(v -> toggleWhiteScreen());
-
         // Set the exit button click listener to stop all services
         exitButton.setOnClickListener(v -> {
             stopAllServices();
@@ -252,33 +282,33 @@ public class FloatingCameraService extends Service {
 //            }
 //        });
 
-        btnSetHSV.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(FloatingCameraService.this, HSVActivity.class);
-                startActivity(intent);
-                // 设置输入框为可见
-//                editTextH.setVisibility(View.VISIBLE);
-//                editTextS.setVisibility(View.VISIBLE);
-//                editTextV.setVisibility(View.VISIBLE);
-//                submitbtn.setVisibility(View.VISIBLE);
-//
-//
-//                try {
-//                    // 从输入框中获取值
-//                    float h = Float.parseFloat(editTextH.getText().toString());
-//                    float s = Float.parseFloat(editTextS.getText().toString());
-//                    float vValue = Float.parseFloat(editTextV.getText().toString());
-//
-//                    // 将值传递给 openCVProcessor.inputHSV()
-//                    openCVProcessor.inputHSV(h, s, vValue);
-//
-//                } catch (NumberFormatException e) {
-//                    // 如果用户输入不是数字，显示错误提示
-//                    Toast.makeText(getApplicationContext(), "Invalid HSV values", Toast.LENGTH_SHORT).show();
-//                }
-            }
-        });
+//        btnSetHSV.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                Intent intent = new Intent(FloatingCameraService.this, HSVActivity.class);
+//                startActivity(intent);
+//                // 设置输入框为可见
+////                editTextH.setVisibility(View.VISIBLE);
+////                editTextS.setVisibility(View.VISIBLE);
+////                editTextV.setVisibility(View.VISIBLE);
+////                submitbtn.setVisibility(View.VISIBLE);
+////
+////
+////                try {
+////                    // 从输入框中获取值
+////                    float h = Float.parseFloat(editTextH.getText().toString());
+////                    float s = Float.parseFloat(editTextS.getText().toString());
+////                    float vValue = Float.parseFloat(editTextV.getText().toString());
+////
+////                    // 将值传递给 openCVProcessor.inputHSV()
+////                    openCVProcessor.inputHSV(h, s, vValue);
+////
+////                } catch (NumberFormatException e) {
+////                    // 如果用户输入不是数字，显示错误提示
+////                    Toast.makeText(getApplicationContext(), "Invalid HSV values", Toast.LENGTH_SHORT).show();
+////                }
+//            }
+//        });
 
 //        submitbtn.setOnClickListener(new View.OnClickListener() {
 //            @Override
@@ -290,30 +320,6 @@ public class FloatingCameraService extends Service {
 
     }
 
-    private void toggleWhiteScreen() {
-        if (isWhiteScreen) {
-            if (whiteScreenOverlay != null) {
-                mWindowManager.removeView(whiteScreenOverlay);
-                whiteScreenOverlay = null;
-            }
-        } else {
-            whiteScreenOverlay = new View(this);
-            whiteScreenOverlay.setBackgroundColor(0xFFFFFFFF); // 设置为白色
-            WindowManager.LayoutParams whiteScreenParams = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
-                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
-                            WindowManager.LayoutParams.TYPE_PHONE,
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                    PixelFormat.TRANSLUCENT);
-
-            // 确保白色覆盖层位于按钮下方
-            whiteScreenParams.gravity = Gravity.TOP | Gravity.START;
-            mWindowManager.addView(whiteScreenOverlay, whiteScreenParams);
-        }
-        isWhiteScreen = !isWhiteScreen;
-    }
 
     // Stop all running services
     private void stopAllServices() {
@@ -346,27 +352,45 @@ public class FloatingCameraService extends Service {
         super.onDestroy();
     }
 
-    MyAccessibilityService myService = new  MyAccessibilityService();
+
+    int i = 0;
     // 返回鍵功能
-    public void pressBackButton() {
+    private long lastPressTime = 0; // 上次按下时间
+    private int pressCount = 0;     // 1秒内的按下次数
+
+    public void pressKeyButton() {
+        long currentTime = System.currentTimeMillis(); // 获取当前时间
+
+        // 判断是否在 1 秒内
+        if (currentTime - lastPressTime <= 500) {
+            pressCount++; // 增加按下次数
+        } else {
+            // 超过 1 秒，重置计数器
+            pressCount = 1;
+        }
+
+        lastPressTime = currentTime; // 更新上次按下时间
+
+        // 限制按键次数循环
+        int i = pressCount % 3;
+        if (i == 0) i = 3; // 确保 i 在 1~3 之间循环
+
         Intent intent = new Intent(FloatingCameraService.this, MyAccessibilityService.class);
-        intent.putExtra("action_type", "pressBack");
+        switch (i) {
+            case 1:
+                intent.putExtra("action_type", "pressBack");
+                break;
+            case 2:
+                intent.putExtra("action_type", "pressHome");
+                break;
+            case 3:
+                intent.putExtra("action_type", "pressRecent");
+                break;
+        }
+
+        Log.d("FloatingCameraService", "Press count within 1 second: " + pressCount);
         startService(intent);
     }
 
-
-    // 回首頁鍵功能
-    public void pressHomeButton() {
-        Intent intent = new Intent(FloatingCameraService.this, MyAccessibilityService.class);
-        intent.putExtra("action_type", "pressHome");
-        startService(intent);
-    }
-
-    // 清單鍵功能 (近期應用)
-    public void pressRecentAppsButton() {
-        Intent intent = new Intent(FloatingCameraService.this, MyAccessibilityService.class);
-        intent.putExtra("action_type", "pressRecent");
-        startService(intent);
-    }
 
 }

@@ -92,12 +92,20 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     // 用于判断光点是否持续“亮”达到指定时间
     private boolean isBrightEnough = false;
     private int[] lastClickPoint = null;
+    int isKeepDrag = 0;
 
 
 
     public interface PointListener {
         void onPointDetected(int x, int y);
     }
+    public void onButtonClicked() {
+        isKeepDrag ++;
+        if(isKeepDrag > 2){
+            isKeepDrag = 1;
+        }
+    }
+
 
     public OpenCVProcessor(Context context, PointListener pointListener) {
         this.context = context;
@@ -419,7 +427,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         long minBrightnessDuration = 100; // 光点“亮”的最短持续时间（单位：毫秒）
         long maxDarknessDuration = 200;  // 光点“暗”的最大持续时间（单位：毫秒）
         long clickThresholdDistance = 50; // 点击的最大移动距离（单位：像素）
-        long dragThresholdDistance = 50; // 拖曳的距离阈值（单位：像素）
+        long dragThresholdDistance = 200; // 拖曳的距离阈值（单位：像素）
 
         // 记录上一次的光点坐标
 
@@ -450,17 +458,23 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             }
 
             laserCoordinates.add(new int[]{mappedX, mappedY});
+            Log.d(TAG, "processLaserFlashing: " + isKeepDrag);
             if (laserCoordinates.size() >= 2) {
                 int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
                 int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
-                double dragDistance = calculateDistance(start[0], start[1], end[0], end[1]);
-                Log.d("check", String.valueOf(dragDistance));
-                if (dragDistance > dragThresholdDistance) {
-                    Log.d("dragDistance", "dragDistance" + dragDistance);
-                    startDragWithLaser(start[0], start[1], end[0], end[1]);
+                if(isKeepDrag == 1){
+                    keepDrag();
+//                    singleDrag(start[0], start[1], end[0], end[1]);
+                }
+                else if(isKeepDrag == 2){
+                    double dragDistance = calculateDistance(start[0], start[1], end[0], end[1]);
+                    Log.d("check", String.valueOf(dragDistance));
+                    if (dragDistance > dragThresholdDistance) {
+                        Log.d("dragDistance", "dragDistance" + dragDistance);
+                        singleDrag(start[0], start[1], end[0], end[1]);
+                    }
                 }
             }
-
         } else {
             // 如果从亮转暗，记录暗的开始时间
             if (wasLaserPreviouslyVisible) {
@@ -492,22 +506,12 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
     // 停止拖曳操作
     private void stopDragging() {
-        if (!laserCoordinates.isEmpty()) {
-            // 发送拖曳数据到 MyAccessibilityService
-            Intent dragIntent = new Intent(context, MyAccessibilityService.class);
-            dragIntent.putExtra("action_type", "drag");
-            dragIntent.putExtra("coordinates", new ArrayList<>(laserCoordinates));
-            context.startService(dragIntent);
-
-            Log.d("LaserFlashing", "Completed drag with coordinates: " + laserCoordinates);
-        }
-
         laserCoordinates.clear();  // 清空坐标列表
         isDraggingInProgress = false;
     }
 
     // 单次拖曳操作
-    private void startDragWithLaser(int startX, int startY, int endX, int endY) {
+    private void singleDrag(int startX, int startY, int endX, int endY) {
         Intent dragIntent = new Intent(context, MyAccessibilityService.class);
         dragIntent.putExtra("action_type", "drag_single");
         dragIntent.putExtra("startX", startX);
@@ -580,7 +584,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
     // 重置闪烁检测逻辑
 
-    private void startDragWithLaser() {
+    private void keepDrag() {
         // 创建 Intent 传递给 MyAccessibilityService
         Intent dragIntent = new Intent(context, MyAccessibilityService.class);
         dragIntent.putExtra("action_type", "drag");

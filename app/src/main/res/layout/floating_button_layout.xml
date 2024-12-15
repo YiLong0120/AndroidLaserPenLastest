@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="10dp">
 
@@ -10,13 +10,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Menu" />
-
-    <Button
-        android:id="@+id/white_screen_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="White Screen"
-        android:visibility="gone" />
 
     <Button
         android:id="@+id/lock_frame_button"
@@ -46,61 +39,45 @@
         android:layout_height="wrap_content"
         android:text="setting hsv"
         android:visibility="gone" />
-    <Button
-        android:id="@+id/BackBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="BackBtn" />
 
-    <Button
-        android:id="@+id/HomeBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="HomeBtn" />
 
-    <Button
-        android:id="@+id/RecentBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="RecentBtn" />
+    <!--    <EditText-->
+    <!--        android:id="@+id/H"-->
+    <!--        android:layout_width="match_parent"-->
+    <!--        android:layout_height="wrap_content"-->
+    <!--        android:textSize="24sp"-->
+    <!--        android:hint="H"-->
+    <!--        android:inputType="numberDecimal"-->
+    <!--        android:visibility="gone"/>-->
 
-<!--    <EditText-->
-<!--        android:id="@+id/H"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:textSize="24sp"-->
-<!--        android:hint="H"-->
-<!--        android:inputType="numberDecimal"-->
-<!--        android:visibility="gone"/>-->
+    <!--    <EditText-->
+    <!--        android:id="@+id/S"-->
+    <!--        android:layout_width="match_parent"-->
+    <!--        android:layout_height="wrap_content"-->
+    <!--        android:textSize="24sp"-->
+    <!--        android:hint="S"-->
+    <!--        android:inputType="numberDecimal"-->
+    <!--        android:visibility="gone"/>-->
 
-<!--    <EditText-->
-<!--        android:id="@+id/S"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:textSize="24sp"-->
-<!--        android:hint="S"-->
-<!--        android:inputType="numberDecimal"-->
-<!--        android:visibility="gone"/>-->
+    <!--    <EditText-->
+    <!--        android:id="@+id/V"-->
+    <!--        android:layout_width="match_parent"-->
+    <!--        android:layout_height="wrap_content"-->
+    <!--        android:textSize="24sp"-->
+    <!--        android:hint="V"-->
+    <!--        android:inputType="numberDecimal"-->
+    <!--        android:visibility="gone"/>-->
 
-<!--    <EditText-->
-<!--        android:id="@+id/V"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:textSize="24sp"-->
-<!--        android:hint="V"-->
-<!--        android:inputType="numberDecimal"-->
-<!--        android:visibility="gone"/>-->
+    <!--    <Button-->
+    <!--        android:id="@+id/Submit"-->
+    <!--        android:layout_width="wrap_content"-->
+    <!--        android:layout_height="wrap_content"-->
+    <!--        android:text="Submit" />-->
 
-<!--    <Button-->
-<!--        android:id="@+id/Submit"-->
-<!--        android:layout_width="wrap_content"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:text="Submit" />-->
-
-<!--    <TextView-->
-<!--        android:id="@+id/TextView"-->
-<!--        android:layout_width="wrap_content"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:text="TextView" />-->
+    <!--    <TextView-->
+    <!--        android:id="@+id/TextView"-->
+    <!--        android:layout_width="wrap_content"-->
+    <!--        android:layout_height="wrap_content"-->
+    <!--        android:text="TextView" />-->
 
 </LinearLayout>
