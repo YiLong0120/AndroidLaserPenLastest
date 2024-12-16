@@ -388,6 +388,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             Point smoothedPoint = smoothPoint(new Point(scaledX, scaledY));
             Imgproc.circle(rgbaMat, smoothedPoint, 10, new Scalar(255, 0, 0), 3);
             showMouse((int) smoothedPoint.x, (int) smoothedPoint.y);
+            processLaserFlashing((int) smoothedPoint.x, (int) smoothedPoint.y, laserDetected);
         }
 
         // 添加 Logcat 提示
@@ -396,9 +397,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         } else {
             Log.d("LaserDetection", "No laser point detected.");
         }
-
-        // 将检测状态传递给其他方法
-        processLaserFlashing(scaledX, scaledY, laserDetected);
 
         // 释放资源
         binaryMat.release();
@@ -428,9 +426,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         long maxDarknessDuration = 200;  // 光点“暗”的最大持续时间（单位：毫秒）
         long clickThresholdDistance = 50; // 点击的最大移动距离（单位：像素）
         long dragThresholdDistance = 200; // 拖曳的距离阈值（单位：像素）
-
-        // 记录上一次的光点坐标
-
 
         // 光点检测
         if (laserDetected) {
@@ -463,8 +458,8 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                 int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
                 int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
                 if(isKeepDrag == 1){
-                    keepDrag();
-//                    singleDrag(start[0], start[1], end[0], end[1]);
+//                    keepDrag();
+                    singleDrag(start[0], start[1], end[0], end[1]);
                 }
                 else if(isKeepDrag == 2){
                     double dragDistance = calculateDistance(start[0], start[1], end[0], end[1]);
