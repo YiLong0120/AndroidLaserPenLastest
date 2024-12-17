@@ -93,6 +93,8 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private boolean isBrightEnough = false;
     private int[] lastClickPoint = null;
     int isKeepDrag = 0;
+    private long lastLaserTime = 0; // 记录最后一次检测到雷射笔的时间戳
+    private static final long LASER_TIMEOUT = 100; // 1秒超时时间（单位：毫秒）
 
 
 
@@ -306,6 +308,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
     private void detectLaserPoints(Mat rgbaMat, Mat grayMat) {
+        long currentTime = System.currentTimeMillis();
         // 高斯模糊，减少噪声
         Imgproc.GaussianBlur(grayMat, grayMat, new Size(5, 5), 0);
 
@@ -379,17 +382,29 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             }
         }
 
-        // 平滑坐标并绘制光点
+        // 声明全局变量
+
+
         if (laserDetected) {
             missedFrames = 0; // 重置丢帧计数器
             lastLaserDetected = true;
+
+            // 更新最后一次检测到雷射笔的时间
+            lastLaserTime = System.currentTimeMillis();
 
             // 平滑处理后的坐标
             Point smoothedPoint = smoothPoint(new Point(scaledX, scaledY));
             Imgproc.circle(rgbaMat, smoothedPoint, 10, new Scalar(255, 0, 0), 3);
             showMouse((int) smoothedPoint.x, (int) smoothedPoint.y);
             processLaserFlashing((int) smoothedPoint.x, (int) smoothedPoint.y, laserDetected);
+        } else {
+            // 判断距离上次检测到雷射笔的时间是否超过1秒
+            if (System.currentTimeMillis() - lastLaserTime > LASER_TIMEOUT) {
+                laserCoordinates.clear(); // 清除座标
+                Log.d(TAG, "No laser detected for 1 second, clearing laserCoordinates.");
+            }
         }
+
 
         // 添加 Logcat 提示
         if (laserDetected) {
@@ -453,13 +468,13 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             }
 
             laserCoordinates.add(new int[]{mappedX, mappedY});
-            Log.d(TAG, "processLaserFlashing: " + isKeepDrag);
             if (laserCoordinates.size() >= 2) {
                 int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
                 int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
                 if(isKeepDrag == 1){
 //                    keepDrag();
                     singleDrag(start[0], start[1], end[0], end[1]);
+                    Log.d(TAG, "isKeepDrag1: ");
                 }
                 else if(isKeepDrag == 2){
                     double dragDistance = calculateDistance(start[0], start[1], end[0], end[1]);
@@ -471,6 +486,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                 }
             }
         } else {
+            Log.d(TAG, "processLaserFlashing: ");
             // 如果从亮转暗，记录暗的开始时间
             if (wasLaserPreviouslyVisible) {
                 darknessStartTime = currentTime;
