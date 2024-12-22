@@ -5,11 +5,17 @@
     android:orientation="vertical"
     android:padding="10dp">
 
-    <Button
+    <ImageButton
         android:id="@+id/floating_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Menu" />
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/settings"
+        android:scaleType="fitCenter"
+        android:adjustViewBounds="true"
+        android:padding="8dp"
+        android:contentDescription="Menu" />
+
+
 
     <Button
         android:id="@+id/lock_frame_button"

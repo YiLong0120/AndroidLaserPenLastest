@@ -16,6 +16,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
 import org.opencv.android.JavaCameraView;
@@ -173,13 +174,13 @@ public class FloatingCameraService extends Service {
         mWindowManager.addView(switchButton, switchButtonParams);
 
         // 設定按鈕點擊事件
-        Button menuButton = floatingButton.findViewById(R.id.floating_button);
+        ImageButton menuButton = floatingButton.findViewById(R.id.floating_button);
         Button lockFrameButton = floatingButton.findViewById(R.id.lock_frame_button);
         Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
 //        Button btnSetHSV = floatingButton.findViewById(R.id.btn_set_hsv);
 
-        Button BackBtn = backButton.findViewById(R.id.BackBtn);
+        ImageButton BackBtn = backButton.findViewById(R.id.BackBtn);
 
         Button SwitchDrag = switchButton.findViewById(R.id.SwitchDrag);
 

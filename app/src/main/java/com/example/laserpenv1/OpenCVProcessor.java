@@ -94,7 +94,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private int[] lastClickPoint = null;
     int isKeepDrag = 0;
     private long lastLaserTime = 0; // 记录最后一次检测到雷射笔的时间戳
-    private static final long LASER_TIMEOUT = 100; // 1秒超时时间（单位：毫秒）
+    private static final long LASER_TIMEOUT = 1000; // 1秒超时时间（单位：毫秒）
 
 
 
@@ -102,9 +102,10 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         void onPointDetected(int x, int y);
     }
     public void onButtonClicked() {
+        Log.d(TAG, "isKeepDrag=: " + isKeepDrag);
         isKeepDrag ++;
         if(isKeepDrag > 2){
-            isKeepDrag = 1;
+            isKeepDrag = 0;
         }
     }
 
@@ -394,14 +395,16 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
             // 平滑处理后的坐标
             Point smoothedPoint = smoothPoint(new Point(scaledX, scaledY));
+            Log.d(TAG, "smoothedPoint: " + laserCoordinates);
             Imgproc.circle(rgbaMat, smoothedPoint, 10, new Scalar(255, 0, 0), 3);
             showMouse((int) smoothedPoint.x, (int) smoothedPoint.y);
             processLaserFlashing((int) smoothedPoint.x, (int) smoothedPoint.y, laserDetected);
         } else {
             // 判断距离上次检测到雷射笔的时间是否超过1秒
             if (System.currentTimeMillis() - lastLaserTime > LASER_TIMEOUT) {
+                Log.d(TAG, "LASER_TIMEOUT: " + (System.currentTimeMillis() - lastLaserTime));
                 laserCoordinates.clear(); // 清除座标
-                Log.d(TAG, "No laser detected for 1 second, clearing laserCoordinates.");
+                Log.d(TAG, "smoothedPoint clear" + laserCoordinates);
             }
         }
 
@@ -459,7 +462,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                     double clickDistance = calculateDistance(lastClickPoint[0], lastClickPoint[1], mappedX, mappedY);
                     if (clickDistance <= clickThresholdDistance) {
                         // 光点稳定 -> 触发点击
-                        triggerClick(mappedX, mappedY);
+//                        triggerClick(mappedX, mappedY);
                         Log.d("LaserFlashing", "Click triggered at: (" + mappedX + ", " + mappedY + ")");
                     } else {
                         Log.d("LaserFlashing", "Click canceled due to movement.");
@@ -485,27 +488,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                     }
                 }
             }
-        } else {
-            Log.d(TAG, "processLaserFlashing: ");
-            // 如果从亮转暗，记录暗的开始时间
-            if (wasLaserPreviouslyVisible) {
-                darknessStartTime = currentTime;
-            }
-
-            // 如果暗的时间没有超出限制，重置亮的检测状态
-            if (currentTime - darknessStartTime <= maxDarknessDuration) {
-                isBrightEnough = false;
-            } else {
-                // 暗的时间超出限制，重置闪烁计数
-                resetFlashDetection();
-                stopDragging(); // 停止拖曳操作
-                laserCoordinates.clear();
-                isDraggingInProgress = false;
-            }
         }
-
-        // 更新上一次光点的可见状态
-        wasLaserPreviouslyVisible = laserDetected;
     }
 
 
@@ -514,12 +497,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
     }
 
-
-    // 停止拖曳操作
-    private void stopDragging() {
-        laserCoordinates.clear();  // 清空坐标列表
-        isDraggingInProgress = false;
-    }
 
     // 单次拖曳操作
     private void singleDrag(int startX, int startY, int endX, int endY) {
