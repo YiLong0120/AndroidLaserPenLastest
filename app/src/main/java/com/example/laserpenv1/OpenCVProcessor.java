@@ -50,26 +50,11 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
     private Rect screenBoundingRect = null;
     private boolean isFrameLocked = false;
-    private Point lastLaserPoint = null;
-    private Handler laserHandler = new Handler(Looper.getMainLooper());
-    private Runnable laserRunnable;
-    private boolean isLaserStationary = false;
     private float scaleX = 1.0f;
     private float scaleY = 1.0f;
     private Mat frame; // 用來保存當前相機幀
     private static final String TAG = "OpenCVProcessor";
-    private Scalar detectedHSVValue;
-    private boolean isDetectingHSV = false;
-
-    private Scalar lowerHSV;
-    private Scalar upperHSV;
-
-    private boolean isFlashing = false;
     private int flashCount = 0;
-    private long lastFlashTime = 0;
-    private static final int FLASH_DELAY = 500; // 定義閃爍間隔，0.5秒
-    private ArrayList<Point> laserPoints = new ArrayList<>();
-    private boolean isDraggingInProgress = false;
     private Mat perspectiveTransform;
     private Point[] savedCorners = null;
     int getRotation;
@@ -95,6 +80,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     int isKeepDrag = 0;
     private long lastLaserTime = 0; // 记录最后一次检测到雷射笔的时间戳
     private static final long LASER_TIMEOUT = 1000; // 1秒超时时间（单位：毫秒）
+    int temp=0;
 
 
 
@@ -300,14 +286,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         }
     }
 
-    public boolean isFrameLocked() {
-        return isFrameLocked;
-    }
-
-    public Rect getScreenBoundingRect() {
-        return screenBoundingRect;
-    }
-
     private void detectLaserPoints(Mat rgbaMat, Mat grayMat) {
         long currentTime = System.currentTimeMillis();
         // 高斯模糊，减少噪声
@@ -387,9 +365,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
 
         if (laserDetected) {
-            missedFrames = 0; // 重置丢帧计数器
-            lastLaserDetected = true;
-
             // 更新最后一次检测到雷射笔的时间
             lastLaserTime = System.currentTimeMillis();
 
@@ -397,13 +372,23 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             Point smoothedPoint = smoothPoint(new Point(scaledX, scaledY));
             Log.d(TAG, "smoothedPoint: " + laserCoordinates);
             Imgproc.circle(rgbaMat, smoothedPoint, 10, new Scalar(255, 0, 0), 3);
-            showMouse((int) smoothedPoint.x, (int) smoothedPoint.y);
-            processLaserFlashing((int) smoothedPoint.x, (int) smoothedPoint.y, laserDetected);
+
+            temp++;
+            if(temp==1){
+                pointHistory.clear();
+                showMouse(scaledX, scaledY);
+                processLaserFlashing(scaledX, scaledY, laserDetected);
+            }else {
+                showMouse((int) smoothedPoint.x, (int) smoothedPoint.y);
+                processLaserFlashing((int) smoothedPoint.x, (int) smoothedPoint.y, laserDetected);
+            }
+
         } else {
             // 判断距离上次检测到雷射笔的时间是否超过1秒
             if (System.currentTimeMillis() - lastLaserTime > LASER_TIMEOUT) {
                 Log.d(TAG, "LASER_TIMEOUT: " + (System.currentTimeMillis() - lastLaserTime));
-                laserCoordinates.clear(); // 清除座标
+                temp = 0;
+                laserCoordinates.clear();
                 Log.d(TAG, "smoothedPoint clear" + laserCoordinates);
             }
         }
@@ -565,57 +550,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         dstCornersMat.release();
     }
 
-
-
-
-
-
-    // 重置闪烁检测逻辑
-
-    private void keepDrag() {
-        // 创建 Intent 传递给 MyAccessibilityService
-        Intent dragIntent = new Intent(context, MyAccessibilityService.class);
-        dragIntent.putExtra("action_type", "drag");
-        dragIntent.putExtra("coordinates", laserCoordinates);  // 这里的coordinates是ArrayList<int[]>类型
-        context.startService(dragIntent);
-
-        Log.d("LaserFlashing", "Starting drag with coordinates: " + laserCoordinates);
-
-        isDraggingInProgress = true;
-
-        // 重置拖移状态
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            laserCoordinates.clear();
-            isDraggingInProgress = false;
-        }, 1000);
-    }
-
-
-
-
-
-    // 觸發點擊方法
-    private void triggerClick(int x, int y) {
-        Intent clickIntent = new Intent(context, MyAccessibilityService.class);
-        clickIntent.putExtra("action_type", "click");
-        clickIntent.putExtra("x", x);
-        clickIntent.putExtra("y", y);
-        context.startService(clickIntent);
-    }
-
-
-
-
-
-    private double getDistance(Point p1, Point p2) {
-        return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-    }
-
-    public void startHSVDetection() {
-        if (frame != null) {
-            detectHSVPoints(frame);  // 开始检测HSV光点
-        }
-    }
     public void detectHSVPoints(Mat rgbaMat) {
         Mat hsvMat = new Mat();
         Imgproc.cvtColor(rgbaMat, hsvMat, Imgproc.COLOR_RGB2HSV);
@@ -721,9 +655,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Log.d("OpenCVProcessor", "Received HSV Values: H=" + h + ", S=" + s + ", V=" + v);
 
     }
-    private boolean lastLaserDetected = false;
-    private int missedFrames = 0;
-    private final int MAX_MISSED_FRAMES = 3; // 允许的最大丢帧数
 
     private final List<Point> pointHistory = new ArrayList<>();
     private final int MAX_HISTORY_SIZE = 5; // 平滑历史坐标的最大数量
