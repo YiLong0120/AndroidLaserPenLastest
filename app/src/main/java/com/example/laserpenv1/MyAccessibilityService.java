@@ -163,15 +163,19 @@ public class MyAccessibilityService extends AccessibilityService {
         path.lineTo(endX, endY);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // 使用较短的拖曳时间以更频繁更新光标
+            // 使用較短的拖曳時間以更頻繁更新光標
             GestureDescription.StrokeDescription strokeDescription = new GestureDescription.StrokeDescription(path, 0, 5);
             GestureDescription gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
 
+            // 執行拖曳操作
             dispatchGesture(gestureDescription, new GestureResultCallback() {
                 @Override
                 public void onCompleted(GestureDescription gestureDescription) {
                     super.onCompleted(gestureDescription);
                     Log.d(TAG, "Segment of drag performed successfully");
+
+                    // 拖曳完成後模擬停止操作
+                    simulateStopAtEndPoint(endX, endY);
                 }
 
                 @Override
@@ -184,6 +188,36 @@ public class MyAccessibilityService extends AccessibilityService {
             Log.d(TAG, "API level not supported for gestures");
         }
     }
+
+    private void simulateStopAtEndPoint(int x, int y) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // 創建一個模擬按下和釋放的點擊操作（停止動作）
+            Path stopPath = new Path();
+            stopPath.moveTo(x, y);
+
+            GestureDescription.StrokeDescription stopStroke =
+                    new GestureDescription.StrokeDescription(stopPath, 0, 100); // 停止動作時間可調整
+            GestureDescription stopGesture = new GestureDescription.Builder().addStroke(stopStroke).build();
+
+            // 執行停止動作
+            dispatchGesture(stopGesture, new GestureResultCallback() {
+                @Override
+                public void onCompleted(GestureDescription gestureDescription) {
+                    super.onCompleted(gestureDescription);
+                    Log.d(TAG, "Drag stopped at endpoint successfully");
+                }
+
+                @Override
+                public void onCancelled(GestureDescription gestureDescription) {
+                    super.onCancelled(gestureDescription);
+                    Log.d(TAG, "Stop action cancelled");
+                }
+            }, null);
+        } else {
+            Log.d(TAG, "API level not supported for stop action");
+        }
+    }
+
 
     private void performClick(int x, int y) {
         if (x < 0 || y < 0 || x >= getDisplayWidth() || y >= getDisplayHeight()) {
