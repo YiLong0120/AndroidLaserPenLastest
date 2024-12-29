@@ -428,7 +428,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         long minBrightnessDuration = 100; // 光点“亮”的最短持续时间（单位：毫秒）
         long maxDarknessDuration = 200;  // 光点“暗”的最大持续时间（单位：毫秒）
         long clickThresholdDistance = 50; // 点击的最大移动距离（单位：像素）
-        long dragThresholdDistance = 200; // 拖曳的距离阈值（单位：像素）
+        long dragThresholdDistance = 50; // 拖曳的距离阈值（单位：像素）
 
         // 光点检测
         if (laserDetected) {
@@ -464,15 +464,57 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                     singleDrag(start[0], start[1], end[0], end[1]);
                     Log.d(TAG, "isKeepDrag1: ");
                 }
-                else if(isKeepDrag == 2){
+                else if (isKeepDrag == 2) {
                     double dragDistance = calculateDistance(start[0], start[1], end[0], end[1]);
                     Log.d("check", String.valueOf(dragDistance));
+
                     if (dragDistance > dragThresholdDistance) {
-                        Log.d("dragDistance", "dragDistance" + dragDistance);
-                        singleDrag(start[0], start[1], end[0], end[1]);
+                        // 計算拖曳方向
+                        String dragDirection = calculateDragDirection(start, end);
+                        Log.d("dragDirection", "Detected direction: " + dragDirection);
+
+                        // 根據方向執行拖曳
+                        performDirectionalDrag(dragDirection);
                     }
                 }
+
             }
+        }
+    }
+
+    private String calculateDragDirection(int[] start, int[] end) {
+        int deltaX = end[0] - start[0];
+        int deltaY = end[1] - start[1];
+
+        // 判斷方向
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            return deltaX > 0 ? "RIGHT" : "LEFT"; // 水平拖曳
+        } else {
+            return deltaY > 0 ? "DOWN" : "UP"; // 垂直拖曳
+        }
+    }
+
+    private void performDirectionalDrag(String direction) {
+        int centerX = screenWidth / 2; // 螢幕正中間的 X 座標
+        int centerY = screenHeight / 2; // 螢幕正中間的 Y 座標
+        int t = 500;
+        switch (direction) {
+            case "RIGHT":
+                singleDrag(centerX - t, centerY, centerX + t, centerY); // 從左至右
+                Log.d("performDirectionalDrag", "Dragging RIGHT");
+                break;
+            case "LEFT":
+                singleDrag(centerX + t, centerY, centerX - t, centerY); // 從右至左
+                Log.d("performDirectionalDrag", "Dragging LEFT");
+                break;
+            case "UP":
+                singleDrag(centerX, centerY + t, centerX, centerY - t); // 從下至上
+                Log.d("performDirectionalDrag", "Dragging UP");
+                break;
+            case "DOWN":
+                singleDrag(centerX, centerY - t, centerX, centerY + t); // 從上至下
+                Log.d("performDirectionalDrag", "Dragging DOWN");
+                break;
         }
     }
 
