@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.view.View;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.Button;
 import android.widget.Toast;
@@ -21,29 +22,39 @@ public class StartScreenActivity extends AppCompatActivity {
     private static final int REQUEST_CAMERA_PERMISSION = 100;
     private static final int REQUEST_OVERLAY_PERMISSION = 101;
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_start_screen);
 
+        Button teacherInfoButton = findViewById(R.id.teacherInfoButton);
         Button cameraPermissionButton = findViewById(R.id.cameraPermissionButton);
         Button overlayPermissionButton = findViewById(R.id.overlayPermissionButton);
         Button accessibilityPermissionButton = findViewById(R.id.accessibilityPermissionButton);
         Button startButton = findViewById(R.id.startButton);
+        View fogView = findViewById(R.id.fogView);
+
+        // 老師資訊按鈕點擊事件
+        teacherInfoButton.setOnClickListener(v -> {
+            // 跳轉到指定網址
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://sites.google.com/view/cswang"));
+            startActivity(browserIntent);
+        });
 
         cameraPermissionButton.setOnClickListener(v -> requestCameraPermission());
         overlayPermissionButton.setOnClickListener(v -> requestOverlayPermission());
         accessibilityPermissionButton.setOnClickListener(v -> requestAccessibilityPermission());
         startButton.setOnClickListener(v -> {
             if (checkAllPermissionsGranted()) {
-                // 跳转到主摄像头活动
                 Intent intent = new Intent(StartScreenActivity.this, MainActivity.class);
                 startActivity(intent);
-                finish(); // 关闭当前活动
+                finish();
             } else {
-                Toast.makeText(this, "请先授予所有必要的权限", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "請先授予所有必要的權限", Toast.LENGTH_SHORT).show();
             }
         });
+        fogView.setVisibility(View.VISIBLE);
     }
 
     private void requestCameraPermission() {

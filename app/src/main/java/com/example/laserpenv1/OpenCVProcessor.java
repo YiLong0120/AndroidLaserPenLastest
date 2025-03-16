@@ -77,9 +77,9 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     // 用于判断光点是否持续“亮”达到指定时间
     private boolean isBrightEnough = false;
     private int[] lastClickPoint = null;
-    int isKeepDrag = 0;
+    int isKeepDrag = -1;
     private long lastLaserTime = 0; // 记录最后一次检测到雷射笔的时间戳
-    private static final long LASER_TIMEOUT = 1000; // 1秒超时时间（单位：毫秒）
+    private static final long LASER_TIMEOUT = 500; // 1秒超时时间（单位：毫秒）
     int temp=0;
 
 
@@ -166,7 +166,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
 
-    // 偵測投影邊框的函數
     // 偵測投影邊框的函數
     private void detectProjectionScreen(Mat rgbaMat, Mat grayMat) {
         Mat binaryMat = new Mat();
@@ -287,7 +286,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
     private void detectLaserPoints(Mat rgbaMat, Mat grayMat) {
-        long currentTime = System.currentTimeMillis();
         // 高斯模糊，减少噪声
         Imgproc.GaussianBlur(grayMat, grayMat, new Size(5, 5), 0);
 
@@ -385,8 +383,9 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
         } else {
             // 判断距离上次检测到雷射笔的时间是否超过1秒
+            Log.d(TAG, "LASER_TIMEOUT: " + (System.currentTimeMillis() - lastLaserTime));
             if (System.currentTimeMillis() - lastLaserTime > LASER_TIMEOUT) {
-                Log.d(TAG, "LASER_TIMEOUT: " + (System.currentTimeMillis() - lastLaserTime));
+                Log.d(TAG, "LASER_TIMEOUT: " + temp);
                 temp = 0;
                 laserCoordinates.clear();
                 Log.d(TAG, "smoothedPoint clear" + laserCoordinates);
@@ -447,7 +446,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                     double clickDistance = calculateDistance(lastClickPoint[0], lastClickPoint[1], mappedX, mappedY);
                     if (clickDistance <= clickThresholdDistance) {
                         // 光点稳定 -> 触发点击
-//                        triggerClick(mappedX, mappedY);
+                        triggerClick(mappedX, mappedY);
                         Log.d("LaserFlashing", "Click triggered at: (" + mappedX + ", " + mappedY + ")");
                     } else {
                         Log.d("LaserFlashing", "Click canceled due to movement.");
@@ -459,7 +458,10 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             if (laserCoordinates.size() >= 2) {
                 int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
                 int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
-                if(isKeepDrag == 1){
+                if(isKeepDrag == 0){
+//                    triggerClick(mappedX, mappedY);
+                }
+                else if(isKeepDrag == 1){
 //                    keepDrag();
                     singleDrag(start[0], start[1], end[0], end[1]);
                     Log.d(TAG, "isKeepDrag1: ");
@@ -534,6 +536,15 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         dragIntent.putExtra("endX", endX);
         dragIntent.putExtra("endY", endY);
         context.startService(dragIntent);
+    }
+
+    // 觸發點擊方法
+    private void triggerClick(int x, int y) {
+        Intent clickIntent = new Intent(context, MyAccessibilityService.class);
+        clickIntent.putExtra("action_type", "click");
+        clickIntent.putExtra("x", x);
+        clickIntent.putExtra("y", y);
+        context.startService(clickIntent);
     }
 
     // 重置闪烁检测逻辑

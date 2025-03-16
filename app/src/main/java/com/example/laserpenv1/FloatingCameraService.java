@@ -190,7 +190,26 @@ public class FloatingCameraService extends Service {
 //        EditText editTextV = floatingButton.findViewById(R.id.V);
 //        Button submitbtn = floatingButton.findViewById(R.id.Submit);
         BackBtn.setOnClickListener(v -> pressKeyButton());
-        SwitchDrag.setOnClickListener(v -> openCVProcessor.onButtonClicked());
+        SwitchDrag.setOnClickListener(v -> {
+            Button button = (Button) v; // 轉換為按鈕類型
+            String currentText = button.getText().toString();
+
+            // 根據當前文字切換到下一個狀態
+            switch (currentText) {
+                case "點擊":
+                    button.setText("拖曳");
+                    break;
+                case "拖曳":
+                    button.setText("暫定");
+                    break;
+                default:
+                    button.setText("點擊");
+                    break;
+            }
+
+            // 調用 openCVProcessor 的方法
+            openCVProcessor.onButtonClicked();
+        });
 
 
 

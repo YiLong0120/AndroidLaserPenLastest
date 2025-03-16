@@ -1,53 +1,100 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:padding="16dp"
-    android:background="#FFFFFF">
+    android:layout_height="match_parent">
 
+    <!-- 學校背景圖片 -->
+    <ImageView
+        android:id="@+id/schoolBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/school_background" /> <!-- 替換為你的學校圖片 -->
+
+    <!-- 霧化效果 -->
+    <View
+        android:id="@+id/fogView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000" /> <!-- 半透明黑色，霧化效果 -->
+
+    <!-- 主標題 -->
     <TextView
         android:id="@+id/titleTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="支援雷射筆遠程操控手機"
-        android:textSize="24sp"
-        android:textColor="#000000"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="40dp" />
+        android:layout_marginTop="60dp" />
 
-    <Button
-        android:id="@+id/cameraPermissionButton"
-        android:layout_width="wrap_content"
+    <!-- 按鈕容器 -->
+    <LinearLayout
+        android:id="@+id/buttonContainer"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="授予相機權限"
-        android:layout_centerHorizontal="true"
+        android:orientation="vertical"
         android:layout_below="@id/titleTextView"
-        android:layout_marginTop="20dp" />
+        android:layout_marginTop="30dp"
+        android:layout_marginHorizontal="30dp"
+        android:gravity="center_horizontal">
 
-    <Button
-        android:id="@+id/overlayPermissionButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="授予顯示在其他應用程式上層權限"
-        android:layout_centerHorizontal="true"
-        android:layout_below="@id/cameraPermissionButton"
-        android:layout_marginTop="20dp" />
 
-    <Button
-        android:id="@+id/accessibilityPermissionButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="授予無障礙服務權限"
-        android:layout_centerHorizontal="true"
-        android:layout_below="@id/overlayPermissionButton"
-        android:layout_marginTop="20dp" />
 
-    <Button
-        android:id="@+id/startButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="啟動"
-        android:layout_centerHorizontal="true"
-        android:layout_below="@id/accessibilityPermissionButton"
-        android:layout_marginTop="20dp" />
+        <!-- 相機權限按鈕 -->
+        <Button
+            android:id="@+id/cameraPermissionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="授予相機權限"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/button_background"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
 
+        <!-- 顯示上層權限按鈕 -->
+        <Button
+            android:id="@+id/overlayPermissionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="授予顯示在其他應用程式上層權限"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/button_background"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <!-- 無障礙服務權限按鈕 -->
+        <Button
+            android:id="@+id/accessibilityPermissionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="授予無障礙服務權限"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/button_background"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <!-- 啟動按鈕 -->
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="啟動"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/button_background"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <!-- 老師資訊按鈕 -->
+        <Button
+            android:id="@+id/teacherInfoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="教授資訊"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/button_background"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+    </LinearLayout>
 </RelativeLayout>
