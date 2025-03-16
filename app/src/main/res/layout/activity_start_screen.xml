@@ -91,7 +91,7 @@
             android:id="@+id/teacherInfoButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="教授資訊"
+            android:text="導生與學校資訊"
             android:layout_marginBottom="20dp"
             android:background="@drawable/button_background"
             android:textColor="#FFFFFF"

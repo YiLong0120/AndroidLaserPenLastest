@@ -10,10 +10,12 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:src="@drawable/settings"
-        android:scaleType="fitCenter"
+        android:background="@android:color/transparent"
+        android:scaleType="centerInside"
         android:adjustViewBounds="true"
         android:padding="8dp"
         android:contentDescription="Menu" />
+
 
 
 
@@ -21,29 +23,43 @@
         android:id="@+id/lock_frame_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Lock Frame"
+        android:text="鎖定畫面"
         android:visibility="gone" />
 
-    <Button
-        android:id="@+id/hsv_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Record HSV"
-        android:visibility="gone" />
+<!--    <Button-->
+<!--        android:id="@+id/hsv_button"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="Record HSV"-->
+<!--        android:visibility="gone" />-->
 
     <!-- 新增的退出按鈕 -->
     <Button
         android:id="@+id/exit_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Exit"
+        android:text="結束"
+        android:visibility="gone" />
+
+<!--    <Button-->
+<!--        android:id="@+id/btn_set_hsv"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="setting hsv"-->
+<!--        android:visibility="gone" />-->
+
+    <Button
+        android:id="@+id/main_btm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="主畫面"
         android:visibility="gone" />
 
     <Button
-        android:id="@+id/btn_set_hsv"
+        android:id="@+id/toggleCameraButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="setting hsv"
+        android:text="切換相機"
         android:visibility="gone" />
 
 

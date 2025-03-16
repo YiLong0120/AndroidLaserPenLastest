@@ -10,6 +10,7 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:src="@drawable/homebtn"
+        android:background="@android:color/transparent"
         android:scaleType="fitCenter"
         android:adjustViewBounds="true"
         android:padding="8dp"

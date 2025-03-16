@@ -21,7 +21,6 @@ import android.widget.Toast;
 
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.OpenCVLoader;
-import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
 
 public class FloatingCameraService extends Service {
@@ -176,13 +175,17 @@ public class FloatingCameraService extends Service {
         // 設定按鈕點擊事件
         ImageButton menuButton = floatingButton.findViewById(R.id.floating_button);
         Button lockFrameButton = floatingButton.findViewById(R.id.lock_frame_button);
-        Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
+//        Button hsvButton = floatingButton.findViewById(R.id.hsv_button); // 新增 HSV 按鈕
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
 //        Button btnSetHSV = floatingButton.findViewById(R.id.btn_set_hsv);
+        Button mainButton = floatingButton.findViewById(R.id.main_btm);
+        Button toggleCameraButton = floatingButton.findViewById(R.id.toggleCameraButton);
 
         ImageButton BackBtn = backButton.findViewById(R.id.BackBtn);
 
         Button SwitchDrag = switchButton.findViewById(R.id.SwitchDrag);
+
+
 
 
 //        EditText editTextH = floatingButton.findViewById(R.id.H);
@@ -213,18 +216,24 @@ public class FloatingCameraService extends Service {
 
 
 
+
+
         // 設定選單按鈕點擊監聽器
         menuButton.setOnClickListener(v -> {
             if (isMenuExpanded) {
                 lockFrameButton.setVisibility(View.GONE);
-                hsvButton.setVisibility(View.GONE); // 隱藏 HSV 按鈕
+//                hsvButton.setVisibility(View.GONE); // 隱藏 HSV 按鈕
 //                btnSetHSV.setVisibility(View.GONE);
                 exitButton.setVisibility(View.GONE);
+                mainButton.setVisibility(View.GONE);
+                toggleCameraButton.setVisibility(View.GONE);
             } else {
                 lockFrameButton.setVisibility(View.VISIBLE);
-                hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
+//                hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
 //                btnSetHSV.setVisibility(View.VISIBLE);
                 exitButton.setVisibility(View.VISIBLE);
+                mainButton.setVisibility(View.VISIBLE);
+                toggleCameraButton.setVisibility(View.VISIBLE);
             }
             isMenuExpanded = !isMenuExpanded;
         });
@@ -236,40 +245,63 @@ public class FloatingCameraService extends Service {
             }
         });
 
-        // 设置HSV按钮点击监听器
-        hsvButton.setOnClickListener(v -> {
-            if (!isDetectingHSV) {
-                // 如果当前未开始检测，则启动检测
-                isDetectingHSV = true;
-                hsvButton.setText("Record HSV"); // 修改按钮文本以指示状态
-                Log.d(TAG, "detect HSV");
+        mainButton.setOnClickListener(v -> {
+            Intent intent = new Intent(FloatingCameraService.this, StartScreenActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+//            stopSelf();
+        });
 
-                // 启动一个新的线程来进行HSV检测，避免阻塞UI线程
-                new Thread(() -> {
-                    while (isDetectingHSV) {
-                        // 调用OpenCVProcessor的detectHSVPoints方法
-                        if (openCVProcessor != null) {
-                            Mat currentFrame = openCVProcessor.getCurrentFrame();
-                            if (currentFrame != null) {
-                                openCVProcessor.detectHSVPoints(currentFrame);
-                            }
-                        }
-
-                        // 暂停一段时间，避免过于频繁地调用
-                        try {
-                            Thread.sleep(100); // 例如每100毫秒调用一次
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }).start();
-            } else {
-                // 如果当前正在检测，则停止检测
-                isDetectingHSV = false;
-                hsvButton.setText("stop detecting"); // 恢复按钮文本
-                Log.d(TAG, "stop detecting");
+        // 設置按鈕點擊事件來切換相機視圖的顯示與隱藏
+        toggleCameraButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 判斷相機視圖是否可見
+                if (mOpenCvCameraView.getVisibility() == SurfaceView.VISIBLE) {
+                    // 隱藏相機視圖，但保持相機運行
+                    mOpenCvCameraView.setVisibility(SurfaceView.GONE);  // 隱藏畫面
+                    // 這裡不停止相機流，保持相機處於運行狀態
+                } else {
+                    // 顯示相機視圖
+                    mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
+                }
             }
         });
+
+        // 设置HSV按钮点击监听器
+//        hsvButton.setOnClickListener(v -> {
+//            if (!isDetectingHSV) {
+//                // 如果当前未开始检测，则启动检测
+//                isDetectingHSV = true;
+//                hsvButton.setText("Record HSV"); // 修改按钮文本以指示状态
+//                Log.d(TAG, "detect HSV");
+//
+//                // 启动一个新的线程来进行HSV检测，避免阻塞UI线程
+//                new Thread(() -> {
+//                    while (isDetectingHSV) {
+//                        // 调用OpenCVProcessor的detectHSVPoints方法
+//                        if (openCVProcessor != null) {
+//                            Mat currentFrame = openCVProcessor.getCurrentFrame();
+//                            if (currentFrame != null) {
+//                                openCVProcessor.detectHSVPoints(currentFrame);
+//                            }
+//                        }
+//
+//                        // 暂停一段时间，避免过于频繁地调用
+//                        try {
+//                            Thread.sleep(100); // 例如每100毫秒调用一次
+//                        } catch (InterruptedException e) {
+//                            e.printStackTrace();
+//                        }
+//                    }
+//                }).start();
+//            } else {
+//                // 如果当前正在检测，则停止检测
+//                isDetectingHSV = false;
+//                hsvButton.setText("stop detecting"); // 恢复按钮文本
+//                Log.d(TAG, "stop detecting");
+//            }
+//        });
 
         // Set the exit button click listener to stop all services
         exitButton.setOnClickListener(v -> {

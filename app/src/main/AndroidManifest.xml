@@ -46,7 +46,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".HSVActivity" />
-
+        <activity android:name=".StudentAndSchoolInfoActivity" />
 
 
         <service android:name=".FloatingCameraService"
