@@ -67,6 +67,8 @@ public class FloatingCameraService extends Service {
         // 設定相機視圖的浮窗佈局參數
         WindowManager.LayoutParams cameraParams = new WindowManager.LayoutParams(
                 200, 150,
+//                WindowManager.LayoutParams.MATCH_PARENT, // 寬度填滿
+//                WindowManager.LayoutParams.MATCH_PARENT, // 高度填滿
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                         WindowManager.LayoutParams.TYPE_PHONE,

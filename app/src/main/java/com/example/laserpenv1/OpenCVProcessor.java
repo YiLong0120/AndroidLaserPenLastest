@@ -77,10 +77,13 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     // 用于判断光点是否持续“亮”达到指定时间
     private boolean isBrightEnough = false;
     private int[] lastClickPoint = null;
-    int isKeepDrag = -1;
+    int isKeepDrag = 0;
     private long lastLaserTime = 0; // 记录最后一次检测到雷射笔的时间戳
     private static final long LASER_TIMEOUT = 500; // 1秒超时时间（单位：毫秒）
     int temp=0;
+    int firstflashcount = 0;
+    private boolean hasFlashedOnce = false; // 是否在這輪中亮過
+
 
 
 
@@ -267,12 +270,12 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         for (int i = 0; i < 4; i++) {
             Imgproc.line(rgbaMat, corners[i], corners[(i + 1) % 4], new Scalar(0, 255, 0), 2);
         }
-        // 在每个角落绘制数字0, 1, 2, 3
-        for (int i = 0; i < corners.length; i++) {
-            Imgproc.circle(rgbaMat, corners[i], 10, new Scalar(0, 0, 255), -1); // 在每个角上画红色圆点
-            Imgproc.putText(rgbaMat, String.valueOf(i), new Point(corners[i].x + 10, corners[i].y - 10),
-                    Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1); // 绘制数字
-        }
+//        // 在每个角落绘制数字0, 1, 2, 3
+//        for (int i = 0; i < corners.length; i++) {
+//            Imgproc.circle(rgbaMat, corners[i], 10, new Scalar(0, 0, 255), -1); // 在每个角上画红色圆点
+//            Imgproc.putText(rgbaMat, String.valueOf(i), new Point(corners[i].x + 10, corners[i].y - 10),
+//                    Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1); // 绘制数字
+//        }
     }
 
 
@@ -361,36 +364,65 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
         // 声明全局变量
 
-
+        Log.d(TAG, "firstflashcount:" + firstflashcount);
         if (laserDetected) {
-            // 更新最后一次检测到雷射笔的时间
-            lastLaserTime = System.currentTimeMillis();
+            lastLaserTime = System.currentTimeMillis();  // 更新最後亮的時間
+            hasFlashedOnce = true; // 表示這一輪亮過
 
-            // 平滑处理后的坐标
+            // 平滑座標處理
             Point smoothedPoint = smoothPoint(new Point(scaledX, scaledY));
             Log.d(TAG, "smoothedPoint: " + laserCoordinates);
             Imgproc.circle(rgbaMat, smoothedPoint, 10, new Scalar(255, 0, 0), 3);
 
             temp++;
-            if(temp==1){
+            if (temp == 1) {
                 pointHistory.clear();
                 showMouse(scaledX, scaledY);
-                processLaserFlashing(scaledX, scaledY, laserDetected);
-            }else {
+                if (firstflashcount == 2) {
+                    processLaserFlashing(scaledX, scaledY, laserDetected);
+                }
+            } else {
                 showMouse((int) smoothedPoint.x, (int) smoothedPoint.y);
-                processLaserFlashing((int) smoothedPoint.x, (int) smoothedPoint.y, laserDetected);
+                if (firstflashcount == 2) {
+                    processLaserFlashing((int) smoothedPoint.x, (int) smoothedPoint.y, laserDetected);
+                }
             }
 
         } else {
-            // 判断距离上次检测到雷射笔的时间是否超过1秒
+            // 檢查是否超過雷射筆熄滅的時間
             Log.d(TAG, "LASER_TIMEOUT: " + (System.currentTimeMillis() - lastLaserTime));
+
+            if (System.currentTimeMillis() - lastLaserTime > 300) {
+                // 如果這一輪有亮過，代表完成了一次亮 → 滅，計一次
+                if (hasFlashedOnce) {
+                    firstflashcount++;
+                    if (firstflashcount == 3) {
+                        firstflashcount = 0;
+                    }
+                    hasFlashedOnce = false; // 重設亮過的記錄
+                }
+            }
+
             if (System.currentTimeMillis() - lastLaserTime > LASER_TIMEOUT) {
                 Log.d(TAG, "LASER_TIMEOUT: " + temp);
+
+
+                // 如果這一輪有亮過，代表完成了一次亮 → 滅，計一次
+                if (hasFlashedOnce) {
+                    firstflashcount++;
+                    if (firstflashcount == 3) {
+                        firstflashcount = 0;
+                    }
+                    hasFlashedOnce = false; // 重設亮過的記錄
+                }
+
                 temp = 0;
                 laserCoordinates.clear();
                 Log.d(TAG, "smoothedPoint clear" + laserCoordinates);
             }
+
         }
+
 
 
         // 添加 Logcat 提示
@@ -459,7 +491,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                 int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
                 int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
                 if(isKeepDrag == 0){
-//                    triggerClick(mappedX, mappedY);
+                    triggerClick(mappedX, mappedY);
                 }
                 else if(isKeepDrag == 1){
 //                    keepDrag();
