@@ -181,7 +181,7 @@ public class FloatingCameraService extends Service {
         Button exitButton = floatingButton.findViewById(R.id.exit_button);
 //        Button btnSetHSV = floatingButton.findViewById(R.id.btn_set_hsv);
         Button mainButton = floatingButton.findViewById(R.id.main_btm);
-        Button toggleCameraButton = floatingButton.findViewById(R.id.toggleCameraButton);
+//        Button toggleCameraButton = floatingButton.findViewById(R.id.toggleCameraButton);
 
         ImageButton BackBtn = backButton.findViewById(R.id.BackBtn);
 
@@ -201,14 +201,11 @@ public class FloatingCameraService extends Service {
 
             // 根據當前文字切換到下一個狀態
             switch (currentText) {
-                case "點擊":
-                    button.setText("拖曳");
-                    break;
                 case "拖曳":
-                    button.setText("暫定");
+                    button.setText("點擊");
                     break;
                 default:
-                    button.setText("點擊");
+                    button.setText("拖曳");
                     break;
             }
 
@@ -228,14 +225,14 @@ public class FloatingCameraService extends Service {
 //                btnSetHSV.setVisibility(View.GONE);
                 exitButton.setVisibility(View.GONE);
                 mainButton.setVisibility(View.GONE);
-                toggleCameraButton.setVisibility(View.GONE);
+//                toggleCameraButton.setVisibility(View.GONE);
             } else {
                 lockFrameButton.setVisibility(View.VISIBLE);
 //                hsvButton.setVisibility(View.VISIBLE); // 顯示 HSV 按鈕
 //                btnSetHSV.setVisibility(View.VISIBLE);
                 exitButton.setVisibility(View.VISIBLE);
                 mainButton.setVisibility(View.VISIBLE);
-                toggleCameraButton.setVisibility(View.VISIBLE);
+//                toggleCameraButton.setVisibility(View.VISIBLE);
             }
             isMenuExpanded = !isMenuExpanded;
         });
@@ -254,21 +251,21 @@ public class FloatingCameraService extends Service {
 //            stopSelf();
         });
 
-        // 設置按鈕點擊事件來切換相機視圖的顯示與隱藏
-        toggleCameraButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // 判斷相機視圖是否可見
-                if (mOpenCvCameraView.getVisibility() == SurfaceView.VISIBLE) {
-                    // 隱藏相機視圖，但保持相機運行
-                    mOpenCvCameraView.setVisibility(SurfaceView.GONE);  // 隱藏畫面
-                    // 這裡不停止相機流，保持相機處於運行狀態
-                } else {
-                    // 顯示相機視圖
-                    mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
-                }
-            }
-        });
+//        // 設置按鈕點擊事件來切換相機視圖的顯示與隱藏
+//        toggleCameraButton.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                // 判斷相機視圖是否可見
+//                if (mOpenCvCameraView.getVisibility() == SurfaceView.VISIBLE) {
+//                    // 隱藏相機視圖，但保持相機運行
+//                    mOpenCvCameraView.setVisibility(SurfaceView.GONE);  // 隱藏畫面
+//                    // 這裡不停止相機流，保持相機處於運行狀態
+//                } else {
+//                    // 顯示相機視圖
+//                    mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
+//                }
+//            }
+//        });
 
         // 设置HSV按钮点击监听器
 //        hsvButton.setOnClickListener(v -> {

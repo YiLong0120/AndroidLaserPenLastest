@@ -48,7 +48,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="授予相機權限"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="30dp"
             android:background="@drawable/button_background"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
@@ -59,7 +59,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="授予顯示在其他應用程式上層權限"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="30dp"
             android:background="@drawable/button_background"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
@@ -70,7 +70,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="授予無障礙服務權限"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="30dp"
             android:background="@drawable/button_background"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
@@ -81,20 +81,20 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="啟動"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="30dp"
             android:background="@drawable/button_background"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
 
-        <!-- 老師資訊按鈕 -->
-        <Button
-            android:id="@+id/teacherInfoButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="導生與學校資訊"
-            android:layout_marginBottom="20dp"
-            android:background="@drawable/button_background"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp" />
+<!--        &lt;!&ndash; 老師資訊按鈕 &ndash;&gt;-->
+<!--        <Button-->
+<!--            android:id="@+id/teacherInfoButton"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="導生與學校資訊"-->
+<!--            android:layout_marginBottom="20dp"-->
+<!--            android:background="@drawable/button_background"-->
+<!--            android:textColor="#FFFFFF"-->
+<!--            android:textSize="16sp" />-->
     </LinearLayout>
 </RelativeLayout>

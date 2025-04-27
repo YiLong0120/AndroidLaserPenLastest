@@ -27,18 +27,18 @@ public class StartScreenActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_start_screen);
 
-        Button teacherInfoButton = findViewById(R.id.teacherInfoButton);
+//        Button teacherInfoButton = findViewById(R.id.teacherInfoButton);
         Button cameraPermissionButton = findViewById(R.id.cameraPermissionButton);
         Button overlayPermissionButton = findViewById(R.id.overlayPermissionButton);
         Button accessibilityPermissionButton = findViewById(R.id.accessibilityPermissionButton);
         Button startButton = findViewById(R.id.startButton);
         View fogView = findViewById(R.id.fogView);
 
-        // 老師資訊按鈕
-        teacherInfoButton.setOnClickListener(v -> {
-            Intent intent = new Intent(StartScreenActivity.this, StudentAndSchoolInfoActivity.class);
-            startActivity(intent);
-        });
+//        // 老師資訊按鈕
+//        teacherInfoButton.setOnClickListener(v -> {
+//            Intent intent = new Intent(StartScreenActivity.this, StudentAndSchoolInfoActivity.class);
+//            startActivity(intent);
+//        });
 
         // 權限按鈕
         cameraPermissionButton.setOnClickListener(v -> requestCameraPermission());
