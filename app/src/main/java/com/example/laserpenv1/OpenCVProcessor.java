@@ -84,6 +84,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     int firstflashcount = 0;
     private boolean hasFlashedOnce = false; // 是否在這輪中亮過
     private boolean allowDrag = false;
+    ArrayList<int[]> dragPath = new ArrayList<>();
 
 
 
@@ -93,7 +94,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     public void onButtonClicked() {
         Log.d(TAG, "isKeepDrag=: " + isKeepDrag);
         isKeepDrag ++;
-        if(isKeepDrag > 1){
+        if(isKeepDrag > 2){
             isKeepDrag = 0;
         }
     }
@@ -139,15 +140,16 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         int rotation = windowManager.getDefaultDisplay().getRotation();
         Log.d(TAG, "rotation:" + rotation);
         switch (rotation) {
-            case Surface.ROTATION_90: // 屏幕左旋90度
+            case Surface.ROTATION_0:    // 新增正方向處理
+                getRotation = rotation;
+                break;
+            case Surface.ROTATION_90:   // 左旋90度
                 Core.rotate(frame, frame, Core.ROTATE_90_COUNTERCLOCKWISE);
                 getRotation = rotation;
                 break;
-            case Surface.ROTATION_180: // 屏幕倒转180度
-                Core.rotate(frame, frame, Core.ROTATE_180);
-                break;
-            case Surface.ROTATION_270: // 屏幕右旋90度
+            case Surface.ROTATION_270:  // 右旋90度
                 Core.rotate(frame, frame, Core.ROTATE_90_CLOCKWISE);
+                getRotation = rotation;
                 break;
         }
         Mat grayMat = new Mat();
@@ -168,6 +170,38 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         return frame;
     }
 
+    private Scalar lowerHSV = new Scalar(55, 75, 235); // 預設值
+    private Scalar upperHSV = new Scalar(90, 100, 255); // 預設值
+    public int[] getCurrentMostFrequentHSV() {
+        return calculateMostFrequentHSV(hsvSamples);
+    }
+
+    // 設定新的 HSV 閾值
+    public void setLaserHSV(int h, int s, int v) {
+        // 只處理有效值
+        if (h > 0 && s > 0 && v > 0) {
+            this.H = h;
+            this.S = s;
+            this.V = v;
+
+            // 計算動態範圍
+            int hRange = Math.max(10, h / 10);  // 至少10或H的10%
+            int sRange = Math.max(20, s / 5);   // 至少20或S的20%
+            int vRange = Math.max(20, v / 5);   // 至少20或V的20%
+
+            // 設置下限和上限，確保不超出HSV合法範圍
+            this.lowerHSV = new Scalar(Math.max(0, h - hRange),
+                    Math.max(0, s - sRange),
+                    Math.max(0, v - vRange));
+
+            this.upperHSV = new Scalar(Math.min(180, h + hRange),
+                    Math.min(255, s + sRange),
+                    Math.min(255, v + vRange));
+
+            Log.d(TAG, "Set Laser HSV Center: H=" + h + ", S=" + s + ", V=" + v);
+            Log.d(TAG, "Set Laser HSV Range: lower=" + lowerHSV + ", upper=" + upperHSV);
+        }
+    }
 
     // 偵測投影邊框的函數
     private void detectProjectionScreen(Mat rgbaMat, Mat grayMat) {
@@ -180,7 +214,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
         // 使用Canny边缘检测增强边缘特征
         Mat edges = new Mat();
-        Imgproc.Canny(binaryMat, edges, 100, 200);
+        Imgproc.Canny(binaryMat, edges, 150, 250);
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
@@ -215,17 +249,23 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         // 检测到四个顶点，表示找到可能的投影幕
         Point[] corners = approxCurve.toArray();
         if (corners.length == 4) {
-            // 画出投影边框的四个角点
-            drawProjectionFrame(rgbaMat, corners);
+            Point[] orderedCorners = sortCorners(corners);
+            drawProjectionFrame(rgbaMat, orderedCorners);
+            savedCorners = orderedCorners;
 
-            // 保存当前检测到的角点
-            savedCorners = corners;
+            // 交換 index 0 和 1
             Point temp = savedCorners[0];
-            savedCorners[0] = savedCorners[2];
-            savedCorners[2] = temp;
-            logCorners("Detected Corners", savedCorners); // 添加这行
+            savedCorners[0] = savedCorners[1];
+            savedCorners[1] = temp;
 
-            // 定义手机屏幕的四个角
+            // 交換 index 2 和 3
+            temp = savedCorners[2];
+            savedCorners[2] = savedCorners[3];
+            savedCorners[3] = temp;
+
+            logCorners("Detected Corners", savedCorners);
+
+            // 定義手機螢幕的四個角
             Point[] dstCorners = new Point[4];
             dstCorners[0] = new Point(0, 0);                        // 左上角
             dstCorners[1] = new Point(rgbaMat.cols(), 0);           // 右上角
@@ -234,10 +274,10 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
 
             logCorners("Destination Corners", dstCorners);
 
-            // 透视变换矩阵
-            MatOfPoint2f srcMat = new MatOfPoint2f(corners);
+            // 透視變換矩陣
+            MatOfPoint2f srcMat = new MatOfPoint2f(savedCorners); // 注意這裡要用 savedCorners
             MatOfPoint2f dstMat = new MatOfPoint2f(dstCorners);
-            perspectiveTransform = Imgproc.getPerspectiveTransform(srcMat, dstMat);  // 保存变换矩阵
+            perspectiveTransform = Imgproc.getPerspectiveTransform(srcMat, dstMat);
 
             // 计算比例缩放因子
             calculateScaleFactors();
@@ -254,7 +294,61 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         edges.release();
     }
 
+    // 依照 x+y 最小的是左上，x-y 最小的是右上，x+y 最大的是右下，x-y 最大的是左下
+    private Point[] sortCorners(Point[] corners) {
+        Point[] ordered = new Point[4];
 
+        double sum0 = corners[0].x + corners[0].y;
+        double sum1 = corners[1].x + corners[1].y;
+        double sum2 = corners[2].x + corners[2].y;
+        double sum3 = corners[3].x + corners[3].y;
+
+        double diff0 = corners[0].x - corners[0].y;
+        double diff1 = corners[1].x - corners[1].y;
+        double diff2 = corners[2].x - corners[2].y;
+        double diff3 = corners[3].x - corners[3].y;
+
+        // 左上：x+y 最小
+        int idx0 = 0, idx1 = 0, idx2 = 0, idx3 = 0;
+        double minSum = sum0;
+        double maxSum = sum0;
+        for (int i = 1; i < 4; i++) {
+            double s = corners[i].x + corners[i].y;
+            if (s < minSum) {
+                minSum = s;
+                idx0 = i;
+            }
+            if (s > maxSum) {
+                maxSum = s;
+                idx2 = i;
+            }
+        }
+        // 右上：x-y 最小
+        double minDiff = diff0;
+        for (int i = 1; i < 4; i++) {
+            double d = corners[i].x - corners[i].y;
+            if (d < minDiff) {
+                minDiff = d;
+                idx1 = i;
+            }
+        }
+        // 左下：x-y 最大
+        double maxDiff = diff0;
+        for (int i = 1; i < 4; i++) {
+            double d = corners[i].x - corners[i].y;
+            if (d > maxDiff) {
+                maxDiff = d;
+                idx3 = i;
+            }
+        }
+
+        ordered[0] = corners[idx0]; // 左上
+        ordered[1] = corners[idx1]; // 右上
+        ordered[2] = corners[idx2]; // 右下
+        ordered[3] = corners[idx3]; // 左下
+
+        return ordered;
+    }
 
 
 
@@ -289,44 +383,45 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
     private void detectLaserPoints(Mat rgbaMat, Mat grayMat) {
-        // 高斯模糊，减少噪声
+        // 高斯模糊降噪（保持不變）
         Imgproc.GaussianBlur(grayMat, grayMat, new Size(5, 5), 0);
 
-        // 自适应二值化
-        Mat binaryMat = new Mat();
-        Imgproc.adaptiveThreshold(
-                grayMat, binaryMat, 255,
-                Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
-                Imgproc.THRESH_BINARY,
-                11, 2
-        );
-
-        // 转换到 HSV 空间
+        // 轉換到 HSV 色彩空間
         Mat hsvMat = new Mat();
         Imgproc.cvtColor(rgbaMat, hsvMat, Imgproc.COLOR_RGB2HSV);
 
-        // 定义绿色的 HSV 范围
-        Scalar lowerGreen = new Scalar(70, 80, 240);
-        Scalar upperGreen = new Scalar(90, 100, 255);
+        // 調整綠色雷射筆的HSV範圍（關鍵修改）
+        Scalar lowerGreen = new Scalar(50, 40, 180);   // 下限（色相,飽和度,明度）
+        Scalar upperGreen = new Scalar(90, 255, 255);  // 上限（放寬飽和度和明度）
+
+        // 生成HSV遮罩
         Mat greenMask = new Mat();
         Core.inRange(hsvMat, lowerGreen, upperGreen, greenMask);
 
-        // 结合二值化和 HSV 掩膜
+        // 加入亮度通道強化（V通道單獨處理）
+        List<Mat> hsvChannels = new ArrayList<>();
+        Core.split(hsvMat, hsvChannels);
+        Mat vChannel = hsvChannels.get(2);
+        Mat brightMask = new Mat();
+        Imgproc.threshold(vChannel, brightMask, 220, 255, Imgproc.THRESH_BINARY); // 降低亮度阈值
+
+        // 綜合遮罩（結合HSV和亮度）
         Mat combinedMask = new Mat();
-        Core.bitwise_and(binaryMat, greenMask, combinedMask);
+        Core.bitwise_and(greenMask, brightMask, combinedMask);
 
-        // 膨胀操作以突出光点
+        // 形態學操作（調整膨脹核大小）
         Mat dilatedMask = new Mat();
-        Imgproc.dilate(combinedMask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(15, 15)));
+        Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(25, 25));  // 增大核尺寸
+        Imgproc.dilate(combinedMask, dilatedMask, kernel);
 
-        // 查找轮廓
+        // 找輪廓（降低最小面積限制）
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
         Imgproc.findContours(dilatedMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
-        // 获取最大轮廓的边界框
+        // 找最大光點
         Rect boundingRect = null;
-        double minArea = 50.0; // 最小轮廓面积阈值
+        double minArea = 2.0;  // 允許更小的光點
         for (MatOfPoint contour : contours) {
             Rect rect = Imgproc.boundingRect(contour);
             if (rect.area() >= minArea && (boundingRect == null || rect.area() > boundingRect.area())) {
@@ -334,32 +429,27 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
             }
         }
 
-        boolean laserDetected = false; // 是否检测到激光光点的标志
+        boolean laserDetected = false;
         int scaledX = 0, scaledY = 0;
 
         if (boundingRect != null && perspectiveTransform != null) {
-            // 激光光点的原始坐标
-            int laserX = boundingRect.x + boundingRect.width / 2;
-            int laserY = boundingRect.y + boundingRect.height / 2;
+            // 計算光點中心（加入邊界檢查）
+            int laserX = Math.max(0, Math.min(boundingRect.x + boundingRect.width/2, hsvMat.cols()-1));
+            int laserY = Math.max(0, Math.min(boundingRect.y + boundingRect.height/2, hsvMat.rows()-1));
 
-            // 应用透视变换
+            // 透視變換
             MatOfPoint2f originalPoint = new MatOfPoint2f(new Point(laserX, laserY));
             MatOfPoint2f transformedPoint = new MatOfPoint2f();
             Core.perspectiveTransform(originalPoint, transformedPoint, perspectiveTransform);
 
-            // 获取变换后的坐标
+            // 座標縮放與邊界限制
             Point correctedPoint = transformedPoint.toArray()[0];
-            int correctedX = (int) correctedPoint.x;
-            int correctedY = (int) correctedPoint.y;
+            scaledX = (int) (correctedPoint.x * scaleX);
+            scaledY = (int) (correctedPoint.y * scaleY);
+            scaledX = Math.max(0, Math.min(scaledX, screenWidth-1));
+            scaledY = Math.max(0, Math.min(scaledY, screenHeight-1));
 
-            // 按比例缩放坐标
-            scaledX = (int) (correctedX * scaleX);
-            scaledY = (int) (correctedY * scaleY);
-
-            // 限制坐标范围，避免噪声导致的异常
-            if (scaledX >= 0 && scaledX < screenWidth && scaledY >= 0 && scaledY < screenHeight) {
-                laserDetected = true;
-            }
+            laserDetected = true;
         }
 
         // 声明全局变量
@@ -404,6 +494,25 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
                         // 只有經過 >1秒熄滅後，再亮起來才開始拖曳
                         singleDrag(start[0], start[1], end[0], end[1]);
                         Log.d(TAG, "Dragging from (" + start[0] + "," + start[1] + ") to (" + end[0] + "," + end[1] + ")");
+                    }else if (isKeepDrag == 2 && allowDrag) {  // 移除 laserCoordinates.size()>20 判断
+                        // 新增距离检查 (避免微小移动误触)
+                        if (laserCoordinates.size() >= 2) {
+                            int[] first = laserCoordinates.get(0);
+                            int[] last = laserCoordinates.get(laserCoordinates.size() - 1);
+                            double distance = calculateDistance(first[0], first[1], last[0], last[1]);
+
+                            if (laserCoordinates.size() % 10 == 0) { // 每10個點發送一次
+                                ArrayList<int[]> batch = new ArrayList<>(laserCoordinates.subList(
+                                        Math.max(0, laserCoordinates.size()-10),
+                                        laserCoordinates.size()
+                                ));
+
+                                Intent partialDrag = new Intent(context, MyAccessibilityService.class);
+                                partialDrag.putExtra("action_type", "drag");
+                                partialDrag.putExtra("coordinates", batch);
+                                context.startService(partialDrag);
+                            }
+                        }
                     }
                 }
 
@@ -437,13 +546,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         }
 
 
-
-
-
-
-
-
-
         // 添加 Logcat 提示
         if (laserDetected) {
             Log.d("LaserDetection", "Laser point detected at: (" + scaledX + ", " + scaledY + ")");
@@ -452,7 +554,7 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         }
 
         // 释放资源
-        binaryMat.release();
+//        binaryMat.release();
         hsvMat.release();
         greenMask.release();
         combinedMask.release();
@@ -660,63 +762,88 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Imgproc.cvtColor(rgbaMat, hsvMat, Imgproc.COLOR_RGB2HSV);
 
         // 定义HSV范围
-        Scalar lowerHSV = new Scalar(55, 75, 235); // 下限
-        Scalar upperHSV = new Scalar(90, 100, 255); // 上限
+        Log.d(TAG, "detectHSVPoints lowerHSV, upperHSV: "+ lowerHSV + upperHSV);
 
         Mat mask = new Mat();
         Core.inRange(hsvMat, lowerHSV, upperHSV, mask);
 
         Mat dilatedMask = new Mat();
-        Imgproc.dilate(mask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(15, 15)));
+        Imgproc.dilate(mask, dilatedMask, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(21, 21)));
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
         Imgproc.findContours(dilatedMask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
         Rect boundingRect = null;
+        double minArea = 5.0; // 降低閾值
         for (MatOfPoint contour : contours) {
             Rect rect = Imgproc.boundingRect(contour);
-            if (boundingRect == null || rect.area() > boundingRect.area()) {
+            if (rect.area() >= minArea && (boundingRect == null || rect.area() > boundingRect.area())) {
                 boundingRect = rect;
             }
         }
 
         if (boundingRect != null) {
-            int laserX = boundingRect.x + boundingRect.width / 2;
-            int laserY = boundingRect.y + boundingRect.height / 2;
+            // 計算範圍內所有點的平均HSV (而不是只取中心點)
+            int count = 0;
+            double sumH = 0, sumS = 0, sumV = 0;
 
-            // 获取HSV值
-            double[] hsvValues = hsvMat.get(laserY, laserX);
-            if (hsvValues != null && hsvValues.length == 3) {
-                Log.d(TAG, "Laser Point Detected: " + laserX + ", " + laserY + " - HSV: " + Arrays.toString(hsvValues));
-
-                // 将当前HSV值添加到队列
-                if (hsvSamples.size() >= HSV_SAMPLE_SIZE) {
-                    hsvSamples.poll(); // 移除最旧的值
+            // 遍歷整個邊界矩形區域的所有像素
+            for (int y = boundingRect.y; y < boundingRect.y + boundingRect.height; y++) {
+                for (int x = boundingRect.x; x < boundingRect.x + boundingRect.width; x++) {
+                    if (y >= 0 && y < hsvMat.rows() && x >= 0 && x < hsvMat.cols()) {
+                        double[] hsv = hsvMat.get(y, x);
+                        if (hsv != null && hsv.length == 3 && hsv[0] > 0 && hsv[1] > 0 && hsv[2] > 0) {
+                            sumH += hsv[0];
+                            sumS += hsv[1];
+                            sumV += hsv[2];
+                            count++;
+                        }
+                    }
                 }
-                hsvSamples.add(hsvValues);
-
-                // 计算每个通道的最常出现值
-                int[] mostFrequentHSV = calculateMostFrequentHSV(hsvSamples);
-                Log.d(TAG, "Most Frequent HSV: H=" + mostFrequentHSV[0] + ", S=" + mostFrequentHSV[1] + ", V=" + mostFrequentHSV[2]);
             }
 
-            // 绘制光点
-            Imgproc.circle(rgbaMat, new Point(laserX, laserY), 10, new Scalar(0, 255, 0), 3);
+            if (count > 0) {
+                // 計算平均值
+                double avgH = sumH / count;
+                double avgS = sumS / count;
+                double avgV = sumV / count;
+
+                // 只有當值有效時才添加到樣本中
+                if (avgH > 0 && avgS > 0 && avgV > 0) {
+                    double[] hsvValues = new double[]{avgH, avgS, avgV};
+                    Log.d(TAG, "Laser Point Detected - Avg HSV: " + Arrays.toString(hsvValues));
+
+                    if (hsvSamples.size() >= HSV_SAMPLE_SIZE) {
+                        hsvSamples.poll(); // 移除最舊的值
+                    }
+                    hsvSamples.add(hsvValues);
+
+                    // 計算最常見的HSV值 (這裡已經自動調用 setLaserHSV)
+                    int[] mostFrequentHSV = calculateMostFrequentHSV(hsvSamples);
+                    setLaserHSV(mostFrequentHSV[0], mostFrequentHSV[1], mostFrequentHSV[2]);
+                    Log.d(TAG, "Updated HSV: H=" + mostFrequentHSV[0] + ", S=" + mostFrequentHSV[1] + ", V=" + mostFrequentHSV[2]);
+                }
+            }
+
+            // 繪製光點
+            Imgproc.circle(rgbaMat, new Point(boundingRect.x + boundingRect.width/2, boundingRect.y + boundingRect.height/2),
+                    10, new Scalar(0, 255, 0), 3);
 
             if (pointListener != null) {
-                pointListener.onPointDetected(laserX, laserY);
+                pointListener.onPointDetected(boundingRect.x + boundingRect.width/2, boundingRect.y + boundingRect.height/2);
             }
         } else {
             Log.d(TAG, "No laser point detected");
         }
 
-        // 释放资源
+        // 釋放資源
         hsvMat.release();
         mask.release();
         dilatedMask.release();
         hierarchy.release();
     }
+
 
     // 计算HSV值中最常出现的H, S, V
     private int[] calculateMostFrequentHSV(Queue<double[]> hsvSamples) {
@@ -724,22 +851,57 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Map<Integer, Integer> sFrequency = new HashMap<>();
         Map<Integer, Integer> vFrequency = new HashMap<>();
 
+        // 用於計算平均值的變數
+        double sumH = 0, sumS = 0, sumV = 0;
+        int countH = 0, countS = 0, countV = 0;
+
         for (double[] hsv : hsvSamples) {
             int h = (int) hsv[0];
             int s = (int) hsv[1];
             int v = (int) hsv[2];
 
-            hFrequency.put(h, hFrequency.getOrDefault(h, 0) + 1);
-            sFrequency.put(s, sFrequency.getOrDefault(s, 0) + 1);
-            vFrequency.put(v, vFrequency.getOrDefault(v, 0) + 1);
+            // 排除無效值 (值為0)
+            if (h > 0) {
+                hFrequency.put(h, hFrequency.getOrDefault(h, 0) + 1);
+                sumH += h;
+                countH++;
+            }
+            if (s > 0) {
+                sFrequency.put(s, sFrequency.getOrDefault(s, 0) + 1);
+                sumS += s;
+                countS++;
+            }
+            if (v > 0) {
+                vFrequency.put(v, vFrequency.getOrDefault(v, 0) + 1);
+                sumV += v;
+                countV++;
+            }
         }
 
+        // 計算平均值 (當無法獲取眾數時使用)
+        int avgH = countH > 0 ? (int)(sumH / countH) : 70; // 默認值
+        int avgS = countS > 0 ? (int)(sumS / countS) : 90; // 默認值
+        int avgV = countV > 0 ? (int)(sumV / countV) : 245; // 默認值
+
+        // 返回每個通道的眾數，如果沒有有效頻率資料，則使用平均值
         return new int[]{
-                getMostFrequentValue(hFrequency),
-                getMostFrequentValue(sFrequency),
-                getMostFrequentValue(vFrequency)
+                getMostFrequentValue(hFrequency, avgH),
+                getMostFrequentValue(sFrequency, avgS),
+                getMostFrequentValue(vFrequency, avgV)
         };
     }
+
+    // 獲取頻率最高的值，如果沒有頻率資料則返回默認值
+    private int getMostFrequentValue(Map<Integer, Integer> frequencyMap, int defaultValue) {
+        if (frequencyMap.isEmpty()) {
+            return defaultValue;
+        }
+        return frequencyMap.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(defaultValue);
+    }
+
 
     // 获取Map中频率最高的值
     private int getMostFrequentValue(Map<Integer, Integer> frequencyMap) {
@@ -765,20 +927,24 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private final int MAX_HISTORY_SIZE = 5; // 平滑历史坐标的最大数量
 
     // 平滑坐标的方法
+    // 修改 smoothPoint 方法，給近期座標更高權重
     private Point smoothPoint(Point newPoint) {
-        pointHistory.add(newPoint);
+        pointHistory.add(newPoint.clone());
         if (pointHistory.size() > MAX_HISTORY_SIZE) {
             pointHistory.remove(0);
         }
 
         double sumX = 0, sumY = 0;
-        for (Point point : pointHistory) {
-            sumX += point.x;
-            sumY += point.y;
+        double weightSum = 0;
+        for (int i = 0; i < pointHistory.size(); i++) {
+            double weight = (i + 1) * 0.5; // 越新的點權重越高
+            sumX += pointHistory.get(i).x * weight;
+            sumY += pointHistory.get(i).y * weight;
+            weightSum += weight;
         }
-
-        return new Point(sumX / pointHistory.size(), sumY / pointHistory.size());
+        return new Point(sumX / weightSum, sumY / weightSum);
     }
+
 }
 
 //    private void processLaserFlashing(int mappedX, int mappedY, boolean laserDetected) {

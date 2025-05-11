@@ -12,6 +12,7 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class MyAccessibilityService extends AccessibilityService {
 
@@ -91,66 +92,74 @@ public class MyAccessibilityService extends AccessibilityService {
         return START_STICKY;
     }
 
+    // 在 MyAccessibilityService 類別新增以下成員變數
+    private GestureDescription.StrokeDescription currentStroke = null;
+    private static final int BATCH_SIZE = 10; // 每10個點發送一次拖曳段
+    private long lastDragTime = 0;
+
+    // 修改後的 performDrag 方法
     private void performDrag(ArrayList<int[]> coordinates) {
-        if (coordinates == null || coordinates.isEmpty()) {
-            Log.e("GestureError", "Coordinates list is empty or null");
-            return;
+        if (coordinates == null || coordinates.isEmpty()) return;
+
+        // 動態計算持續時間（根據移動速度調整）
+        int[] first = coordinates.get(0);
+        int[] last = coordinates.get(coordinates.size()-1);
+        long timeDiff = System.currentTimeMillis() - lastDragTime;
+        double speed = calculateSpeed(first, last, timeDiff);
+        int dynamicDuration = (int) Math.min(500, Math.max(50, 1000 / (speed + 1)));
+
+        // 分段處理座標
+        for (int i=0; i<coordinates.size(); i+=BATCH_SIZE) {
+            int endIndex = Math.min(i+BATCH_SIZE, coordinates.size());
+            List<int[]> batch = coordinates.subList(i, endIndex);
+            submitGestureBatch(batch, dynamicDuration);
         }
 
-        // 检查所有点的坐标是否有效
-        for (int[] point : coordinates) {
-            if (point.length < 2 || point[0] < 0 || point[1] < 0) {
-                Log.e("GestureError", "Invalid drag coordinates: (" + point[0] + ", " + point[1] + ")");
-                return;
-            }
-        }
+        lastDragTime = System.currentTimeMillis();
+    }
+
+    // 新增分段提交方法
+    private void submitGestureBatch(List<int[]> batch, int duration) {
+        if (batch.size() < 2) return;
 
         Path path = new Path();
-        // 根据第一个点移动到初始位置
-        int[] firstPoint = coordinates.get(0);
-        path.moveTo(firstPoint[0], firstPoint[1]);
-
-        // 依次将所有点连接起来，生成完整路径
-        for (int i = 1; i < coordinates.size(); i++) {
-            int[] point = coordinates.get(i);
-            path.lineTo(point[0], point[1]);
-        }
-
-        GestureDescription.StrokeDescription strokeDescription = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            strokeDescription = new GestureDescription.StrokeDescription(path, 0, 1000); // 根据轨迹拖移
-        }
-
-        GestureDescription gestureDescription = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
+        path.moveTo(batch.get(0)[0], batch.get(0)[1]);
+        for (int i=1; i<batch.size(); i++) {
+            path.lineTo(batch.get(i)[0], batch.get(i)[1]);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            boolean result = dispatchGesture(gestureDescription, new GestureResultCallback() {
+            GestureDescription.StrokeDescription stroke;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && currentStroke != null) {
+                // API 26+ 使用連續手勢
+                stroke = currentStroke.continueStroke(path, 0, duration, true);
+            } else {
+                // 低版本API獨立手勢
+                stroke = new GestureDescription.StrokeDescription(path, 0, duration);
+            }
+
+            GestureDescription gesture = new GestureDescription.Builder()
+                    .addStroke(stroke)
+                    .build();
+
+            dispatchGesture(gesture, new GestureResultCallback() {
                 @Override
                 public void onCompleted(GestureDescription gestureDescription) {
-                    super.onCompleted(gestureDescription);
-                    isDraggingInProgress = false;  // 拖移完成
-                    Log.d(TAG, "Drag performed successfully");
-                }
-
-                @Override
-                public void onCancelled(GestureDescription gestureDescription) {
-                    super.onCancelled(gestureDescription);
-                    isDraggingInProgress = false;  // 拖移取消
-                    Log.d(TAG, "Drag cancelled");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        currentStroke = stroke;
+                    }
                 }
             }, null);
-
-            if (!result) {
-                Log.d(TAG, "Drag dispatch failed");
-                isDraggingInProgress = false;
-            }
-        } else {
-            Log.d(TAG, "API level not supported for gestures");
         }
     }
+
+    // 計算移動速度（像素/毫秒）
+    private double calculateSpeed(int[] start, int[] end, long timeDiff) {
+        if (timeDiff == 0) return 0;
+        double distance = Math.hypot(end[0]-start[0], end[1]-start[1]);
+        return distance / timeDiff;
+    }
+
 
     private void performSingleDrag(int startX, int startY, int endX, int endY) {
         if (startX < 0 || startY < 0 || endX < 0 || endY < 0) {
@@ -164,7 +173,7 @@ public class MyAccessibilityService extends AccessibilityService {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             // 使用較短的拖曳時間以更頻繁更新光標
-            GestureDescription.StrokeDescription strokeDescription = new GestureDescription.StrokeDescription(path, 0, 5);
+            GestureDescription.StrokeDescription strokeDescription = new GestureDescription.StrokeDescription(path, 0, 1);
             GestureDescription gestureDescription = new GestureDescription.Builder().addStroke(strokeDescription).build();
 
             // 執行拖曳操作
@@ -173,9 +182,6 @@ public class MyAccessibilityService extends AccessibilityService {
                 public void onCompleted(GestureDescription gestureDescription) {
                     super.onCompleted(gestureDescription);
                     Log.d(TAG, "Segment of drag performed successfully");
-
-                    // 拖曳完成後模擬停止操作
-                    simulateStopAtEndPoint(endX, endY);
                 }
 
                 @Override
@@ -189,34 +195,6 @@ public class MyAccessibilityService extends AccessibilityService {
         }
     }
 
-    private void simulateStopAtEndPoint(int x, int y) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // 創建一個模擬按下和釋放的點擊操作（停止動作）
-            Path stopPath = new Path();
-            stopPath.moveTo(x, y);
-
-            GestureDescription.StrokeDescription stopStroke =
-                    new GestureDescription.StrokeDescription(stopPath, 0, 100); // 停止動作時間可調整
-            GestureDescription stopGesture = new GestureDescription.Builder().addStroke(stopStroke).build();
-
-            // 執行停止動作
-            dispatchGesture(stopGesture, new GestureResultCallback() {
-                @Override
-                public void onCompleted(GestureDescription gestureDescription) {
-                    super.onCompleted(gestureDescription);
-                    Log.d(TAG, "Drag stopped at endpoint successfully");
-                }
-
-                @Override
-                public void onCancelled(GestureDescription gestureDescription) {
-                    super.onCancelled(gestureDescription);
-                    Log.d(TAG, "Stop action cancelled");
-                }
-            }, null);
-        } else {
-            Log.d(TAG, "API level not supported for stop action");
-        }
-    }
 
 
     private void performClick(int x, int y) {

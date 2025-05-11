@@ -34,7 +34,7 @@ public class FloatingCameraService extends Service {
     private boolean isDetectingHSV = false; // 新增状态标记
     private Scalar detectedHSVValue; // 存储检测到的HSV值
     private Context context;
-
+    private int dragMode = -1;
 
 
     @Override
@@ -196,21 +196,22 @@ public class FloatingCameraService extends Service {
 //        Button submitbtn = floatingButton.findViewById(R.id.Submit);
         BackBtn.setOnClickListener(v -> pressKeyButton());
         SwitchDrag.setOnClickListener(v -> {
-            Button button = (Button) v; // 轉換為按鈕類型
-            String currentText = button.getText().toString();
+            Button button = (Button) v;
+            // 切換狀態
+            dragMode = (dragMode + 1) % 3;
 
-            // 根據當前文字切換到下一個狀態
-            switch (currentText) {
-                case "拖曳":
-                    button.setText("點擊");
-                    break;
-                default:
-                    button.setText("拖曳");
-                    break;
+            // 設定文字
+            if (dragMode == 0 || dragMode == 1) {
+                button.setText("拖曳");
+            } else if (dragMode == 2) {
+                button.setText("點擊");
             }
 
             // 調用 openCVProcessor 的方法
-            openCVProcessor.onButtonClicked();
+            if (openCVProcessor != null) {
+                openCVProcessor.isKeepDrag = dragMode;
+                openCVProcessor.onButtonClicked();
+            }
         });
 
 
