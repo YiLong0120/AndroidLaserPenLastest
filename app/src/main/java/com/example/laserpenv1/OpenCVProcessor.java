@@ -54,7 +54,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     private float scaleY = 1.0f;
     private Mat frame; // 用來保存當前相機幀
     private static final String TAG = "OpenCVProcessor";
-    private int flashCount = 0;
     private Mat perspectiveTransform;
     private Point[] savedCorners = null;
     int getRotation;
@@ -63,28 +62,18 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     int screenHeight;
     boolean wasLaserPreviouslyVisible = false;
     long windowStartTime = 0;
-    long lastLaserVisibleTime = 0;
-    boolean cnadrag = false;
     boolean hasTriggeredClick = false;
     private ArrayList<int[]> laserCoordinates = new ArrayList<>();
     float H=70, S=90, V=245;
     private static final int HSV_SAMPLE_SIZE = 50; // HSV采样的最大数量
     private final Queue<double[]> hsvSamples = new LinkedList<>(); // 存储最近的HSV值
-    // 用于记录光点“亮”和“暗”的时间
-    private long brightnessStartTime = 0;
-    private long darknessStartTime = 0;
-
-    // 用于判断光点是否持续“亮”达到指定时间
-    private boolean isBrightEnough = false;
     private int[] lastClickPoint = null;
     int isKeepDrag = 0;
     private long lastLaserTime = 0; // 记录最后一次检测到雷射笔的时间戳
     private static final long LASER_TIMEOUT = 400; // 1秒超时时间（单位：毫秒）
     int temp=0;
-    int firstflashcount = 0;
     private boolean hasFlashedOnce = false; // 是否在這輪中亮過
     private boolean allowDrag = false;
-    ArrayList<int[]> dragPath = new ArrayList<>();
 
 
 
@@ -113,10 +102,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         Log.d(TAG, "size" + displayWidth + displayHeight);
     }
 
-    public void setScaleFactors(float scaleX, float scaleY) {
-        this.scaleX = scaleX;
-        this.scaleY = scaleY;
-    }
 
     @Override
     public void onCameraViewStarted(int width, int height) {
@@ -570,111 +555,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         context.startService(moveIntent);
     }
 
-
-    // 修改后的 processLaserFlashing 方法，增加 laserDetected 参数
-//    private void processLaserFlashing(int mappedX, int mappedY, boolean laserDetected) {
-//        long currentTime = System.currentTimeMillis();
-//        Log.d("LaserFlashing", "Laser flash count: " + flashCount);
-//
-//        // 定义参数
-//        long minBrightnessDuration = 100; // 光点“亮”的最短持续时间（单位：毫秒）
-//        long maxDarknessDuration = 200;  // 光点“暗”的最大持续时间（单位：毫秒）
-//        long clickThresholdDistance = 50; // 点击的最大移动距离（单位：像素）
-//        long dragThresholdDistance = 50; // 拖曳的距离阈值（单位：像素）
-//
-//        // 光点检测
-//        if (laserDetected) {
-//            // 如果是从暗到亮，记录亮的开始时间
-//            if (!wasLaserPreviouslyVisible) {
-//                brightnessStartTime = currentTime;
-//                lastClickPoint = new int[]{mappedX, mappedY}; // 初始化点击坐标
-//            }
-//
-//            Log.d("LaserFlashing", "Time since bright start: " + (currentTime - brightnessStartTime));
-//
-//            // 检测“亮”的时间是否超过指定时长
-//            if (currentTime - brightnessStartTime >= minBrightnessDuration) {
-//                // 判断光点是否稳定在一个位置
-//                if (lastClickPoint != null) {
-//                    double clickDistance = calculateDistance(lastClickPoint[0], lastClickPoint[1], mappedX, mappedY);
-//                    if (clickDistance <= clickThresholdDistance) {
-//                        // 光点稳定 -> 触发点击
-//                        triggerClick(mappedX, mappedY);
-//                        Log.d("LaserFlashing", "Click triggered at: (" + mappedX + ", " + mappedY + ")");
-//                    } else {
-//                        Log.d("LaserFlashing", "Click canceled due to movement.");
-//                    }
-//                }
-//            }
-//
-//            laserCoordinates.add(new int[]{mappedX, mappedY});
-//            if (laserCoordinates.size() >= 2) {
-//                int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
-//                int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
-//                if(isKeepDrag == 0){
-//                    triggerClick(mappedX, mappedY);
-//                }
-//                else if(isKeepDrag == 1){
-////                    keepDrag();
-//                    singleDrag(start[0], start[1], end[0], end[1]);
-//                    Log.d(TAG, "isKeepDrag1: ");
-//                }
-//                else if (isKeepDrag == 2) {
-//                    double dragDistance = calculateDistance(start[0], start[1], end[0], end[1]);
-//                    Log.d("check", String.valueOf(dragDistance));
-//
-//                    if (dragDistance > dragThresholdDistance) {
-//                        // 計算拖曳方向
-//                        String dragDirection = calculateDragDirection(start, end);
-//                        Log.d("dragDirection", "Detected direction: " + dragDirection);
-//
-//                        // 根據方向執行拖曳
-//                        performDirectionalDrag(dragDirection);
-//                    }
-//                }
-//
-//            }
-//        }
-//    }
-
-    private String calculateDragDirection(int[] start, int[] end) {
-        int deltaX = end[0] - start[0];
-        int deltaY = end[1] - start[1];
-
-        // 判斷方向
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-            return deltaX > 0 ? "RIGHT" : "LEFT"; // 水平拖曳
-        } else {
-            return deltaY > 0 ? "DOWN" : "UP"; // 垂直拖曳
-        }
-    }
-
-    private void performDirectionalDrag(String direction) {
-        int centerX = screenWidth / 2; // 螢幕正中間的 X 座標
-        int centerY = screenHeight / 2; // 螢幕正中間的 Y 座標
-        int t = 500;
-        switch (direction) {
-            case "RIGHT":
-                singleDrag(centerX - t, centerY, centerX + t, centerY); // 從左至右
-                Log.d("performDirectionalDrag", "Dragging RIGHT");
-                break;
-            case "LEFT":
-                singleDrag(centerX + t, centerY, centerX - t, centerY); // 從右至左
-                Log.d("performDirectionalDrag", "Dragging LEFT");
-                break;
-            case "UP":
-                singleDrag(centerX, centerY + t, centerX, centerY - t); // 從下至上
-                Log.d("performDirectionalDrag", "Dragging UP");
-                break;
-            case "DOWN":
-                singleDrag(centerX, centerY - t, centerX, centerY + t); // 從上至下
-                Log.d("performDirectionalDrag", "Dragging DOWN");
-                break;
-        }
-    }
-
-
-
     private double calculateDistance(int x1, int y1, int x2, int y2) {
         return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
     }
@@ -699,19 +579,6 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
         clickIntent.putExtra("y", y);
         context.startService(clickIntent);
     }
-
-    // 重置闪烁检测逻辑
-    private void resetFlashDetection() {
-        flashCount = 0;
-        wasLaserPreviouslyVisible = false;
-        hasTriggeredClick = false;
-        windowStartTime = 0;
-    }
-
-
-
-
-
 
     private void calculateScaleFactors() {
         Log.d(TAG, "calculateScaleFactors: " + getRotation);
@@ -946,71 +813,3 @@ public class OpenCVProcessor implements CameraBridgeViewBase.CvCameraViewListene
     }
 
 }
-
-//    private void processLaserFlashing(int mappedX, int mappedY, boolean laserDetected) {
-//        long currentTime = System.currentTimeMillis();
-//
-//        // 初始化
-//        if (laserDetected) {
-//            if (flashCount == 0 || !wasLaserPreviouslyVisible) {
-//                windowStartTime = currentTime;
-//                initialCoordinate = new int[]{mappedX, mappedY}; // 記錄起點
-//            }
-//
-//            // 如果光點從暗到亮，視為一次閃爍
-//            if (!wasLaserPreviouslyVisible) {
-//                flashCount++;
-//                triggerClick(mappedX, mappedY);
-//                Log.d("LaserFlashing", "Laser flash count: " + flashCount);
-////            } else if (flashCount >= 3) {
-////                // 如果闪烁次数 >= 3，持续收集光点的坐标
-////                laserCoordinates.add(new int[]{mappedX, mappedY});
-////
-////                // 当列表中有 2 个或更多点时，将相邻的两个点进行拖曳
-////                if (laserCoordinates.size() >= 2) {
-////                    int[] start = laserCoordinates.get(laserCoordinates.size() - 2);
-////                    int[] end = laserCoordinates.get(laserCoordinates.size() - 1);
-////                    startDragWithLaser(start[0], start[1], end[0], end[1]);
-////                }
-//            }
-//
-//            // 收集最新的光點座標
-//            laserCoordinates.add(new int[]{mappedX, mappedY});
-//
-//            // 如果超過一秒，計算距離並判斷是否進行拖曳
-//            if (currentTime - windowStartTime >= 1000) {
-//                if (laserCoordinates.size() > 1) {
-//                    // 記錄終點
-//                    int[] finalCoordinate = new int[]{mappedX, mappedY};
-//
-//                    // 計算移動距離
-//                    double totalDistance = calculateTotalDistance(laserCoordinates);
-//
-//                    // 判斷距離是否超過閾值（例如 50 像素）
-//                    if (totalDistance >= 50) {
-//                        Log.d("LaserFlashing", "Drag initiated with distance: " + totalDistance);
-//                        startDragWithLaser(
-//                                initialCoordinate[0], initialCoordinate[1],
-//                                finalCoordinate[0], finalCoordinate[1]
-//                        );
-//                    }
-//                }
-//
-//                // 重置偵測
-//                resetFlashDetection();
-//                laserCoordinates.clear();
-//                isDraggingInProgress = false;
-//            }
-//        } else {
-//            // 如果光點不可見或超時，重置
-//            if (currentTime - windowStartTime >= 1000) {
-//                resetFlashDetection();
-//                stopDragging();  // 停止拖曳操作
-//                laserCoordinates.clear();
-//                isDraggingInProgress = false;
-//            }
-//        }
-//
-//        // 更新上一次光點的可見狀態
-//        wasLaserPreviouslyVisible = laserDetected;
-//    }
